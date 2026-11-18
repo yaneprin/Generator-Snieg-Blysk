@@ -898,9 +898,12 @@ function setupCanvasInteractions() {
                 logMessage(`Dodano błysk do istniejącej granicy: klatki ${targetClip.start_frame} - ${targetClip.end_frame}`, 'info');
             }
 
+            const sparklesInClip = state.sparkles.filter(s => s.clip_id === targetClip.id);
+            const clipSparkleIdx = sparklesInClip.length;
             const gapMin = (typeof sparkleGapMinInput !== 'undefined' && sparkleGapMinInput) ? Math.max(0, parseInt(sparkleGapMinInput.value, 10) || 15) : 15;
             const gapMax = (typeof sparkleGapMaxInput !== 'undefined' && sparkleGapMaxInput) ? Math.max(gapMin, parseInt(sparkleGapMaxInput.value, 10) || 45) : 45;
             const gapDur = Math.floor(Math.random() * (gapMax - gapMin + 1)) + gapMin;
+            const initDelay = (clipSparkleIdx * 16 + Math.floor(Math.random() * 12)) % 90;
 
             state.sparkles.push({
                 x: realX,
@@ -908,7 +911,8 @@ function setupCanvasInteractions() {
                 size_category: state.selectedSizeCategory,
                 size_multiplier: state.selectedSizeMultiplier || 1.0,
                 layer: 'sparkles',
-                frame_offset: Math.floor(Math.random() * 120),
+                initial_delay: initDelay,
+                frame_offset: initDelay,
                 gap_duration: gapDur,
                 start_frame: targetClip.start_frame,
                 end_frame: targetClip.end_frame,
@@ -1198,6 +1202,33 @@ function getSparkleSizeSmoothing() {
     return 0.5;
 }
 
+function ensureSparkleProperties(s, idx) {
+    if (!s) return;
+    const gapMin = (typeof sparkleGapMinInput !== 'undefined' && sparkleGapMinInput) ? Math.max(0, parseInt(sparkleGapMinInput.value, 10) || 15) : 15;
+    const gapMax = (typeof sparkleGapMaxInput !== 'undefined' && sparkleGapMaxInput) ? Math.max(gapMin, parseInt(sparkleGapMaxInput.value, 10) || 45) : 45;
+
+    if (s.initial_delay === undefined || isNaN(s.initial_delay)) {
+        if (s.frame_offset !== undefined && !isNaN(s.frame_offset) && s.frame_offset > 0) {
+            s.initial_delay = s.frame_offset % 90;
+        } else {
+            const seed = (idx !== undefined && idx >= 0) ? idx : Math.floor(Math.random() * 20);
+            s.initial_delay = (seed * 16 + Math.floor(Math.random() * 12)) % 90;
+        }
+    }
+    if (s.frame_offset === undefined || isNaN(s.frame_offset)) {
+        s.frame_offset = s.initial_delay;
+    }
+    if (s.gap_duration === undefined || isNaN(s.gap_duration)) {
+        s.gap_duration = Math.floor(Math.random() * (gapMax - gapMin + 1)) + gapMin;
+    }
+    if (s.timing_mode === undefined) {
+        s.timing_mode = 'manual';
+    }
+    if (s.sparkle_type === undefined) {
+        s.sparkle_type = state.selectedSparkleType || '1';
+    }
+}
+
 // HELPER: CALCULATE ACCURATE BLINKING / PULSE FACTOR (0.0 -> 1.0 -> 0.0)
 function getSparklePulseFactor(curFrame, s) {
     const enableBlinking = (typeof sparkleEnableBlinkingCheckbox !== 'undefined' && sparkleEnableBlinkingCheckbox)
@@ -1206,6 +1237,12 @@ function getSparklePulseFactor(curFrame, s) {
 
     if (!enableBlinking) {
         return 1.0;
+    }
+
+    const start = (s && s.start_frame !== undefined) ? s.start_frame : 0;
+    const end = (s && s.end_frame !== undefined) ? s.end_frame : 999999;
+    if (curFrame < start || curFrame > end) {
+        return 0.0;
     }
 
     const fadeIn = (typeof sparkleFadeInInput !== 'undefined' && sparkleFadeInInput)
@@ -1227,8 +1264,16 @@ function getSparklePulseFactor(curFrame, s) {
     const totalCycle = speedAdjustedFadeIn + speedAdjustedHold + speedAdjustedFadeOut + speedAdjustedGap;
     if (totalCycle <= 0) return 1.0;
 
-    const offset = (s && s.frame_offset !== undefined) ? s.frame_offset : 0;
-    const cycleFrame = (Math.max(0, curFrame + offset)) % totalCycle;
+    const initialDelay = (s && s.initial_delay !== undefined)
+        ? s.initial_delay
+        : ((s && s.frame_offset !== undefined) ? s.frame_offset : 0);
+
+    const elapsedInClip = Math.max(0, curFrame - start);
+    if (elapsedInClip < initialDelay) {
+        return 0.0;
+    }
+
+    const cycleFrame = (elapsedInClip - initialDelay) % totalCycle;
 
     let rawProgress = 0.0;
     if (cycleFrame < speedAdjustedFadeIn) {
@@ -1251,11 +1296,46 @@ function getSparklePulseFactor(curFrame, s) {
     const jitterAmount = (typeof sparkleJitterSlider !== 'undefined' && sparkleJitterSlider)
         ? (parseFloat(sparkleJitterSlider.value) || 0) : 0;
     if (jitterAmount > 0.001 && factor > 0.2) {
-        const jitterVal = Math.sin((offset + curFrame) * 0.35) * (jitterAmount * 0.15);
+        const jitterVal = Math.sin((initialDelay + curFrame) * 0.35) * (jitterAmount * 0.15);
         factor = Math.max(0.0, Math.min(1.0, factor + jitterVal));
     }
 
     return Math.max(0.0, Math.min(1.0, factor));
+}
+
+// HELPER: CALCULATE ACCURATE ANIMATED SPRITESHEET FRAME AND VISIBILITY (PRESETS 2, 3, 4)
+function getAnimatedSparkleFrameAndOpacity(curFrame, s, preset, speed) {
+    const start = (s && s.start_frame !== undefined) ? s.start_frame : 0;
+    const end = (s && s.end_frame !== undefined) ? s.end_frame : 999999;
+    if (curFrame < start || curFrame > end) {
+        return { frame: 0, visible: false, opacity: 0.0 };
+    }
+
+    const count = (preset && preset.frameCount) ? preset.frameCount : 41;
+    const spd = speed !== undefined ? speed : (state.sparkleAnimSpeed !== undefined ? state.sparkleAnimSpeed : 1.0);
+    const animDurFrames = Math.max(1, Math.round(count / spd));
+
+    const gap = (s && s.gap_duration !== undefined) ? s.gap_duration : 25;
+    const adjGap = Math.max(0, Math.round(gap / spd));
+    const totalCycle = animDurFrames + adjGap;
+    if (totalCycle <= 0) return { frame: 0, visible: true, opacity: 1.0 };
+
+    const initialDelay = (s && s.initial_delay !== undefined)
+        ? s.initial_delay
+        : ((s && s.frame_offset !== undefined) ? s.frame_offset : 0);
+
+    const elapsedInClip = Math.max(0, curFrame - start);
+    if (elapsedInClip < initialDelay) {
+        return { frame: 0, visible: false, opacity: 0.0 };
+    }
+
+    const cycleFrame = (elapsedInClip - initialDelay) % totalCycle;
+    if (cycleFrame < animDurFrames) {
+        const animFrame = Math.floor(cycleFrame * spd) % count;
+        return { frame: animFrame, visible: true, opacity: 1.0 };
+    } else {
+        return { frame: 0, visible: false, opacity: 0.0 };
+    }
 }
 
 // HELPER: CALCULATE MAXIMUM SPARKLE SIZE FOR PREVIEW AND EXPORT
@@ -1302,6 +1382,7 @@ function startLivePreviewLoop() {
         // 1. Animacja spritesheetów (Presety 2, 3, 4)
         const animatedElements = canvasOverlay.querySelectorAll('.sparkle-animated-item');
         if (animatedElements && animatedElements.length > 0) {
+            const globalOpacity = getSparkleConfigOpacity();
             animatedElements.forEach(img => {
                 const start = parseInt(img.getAttribute('data-start') || '0', 10);
                 const end = parseInt(img.getAttribute('data-end') || '999999', 10);
@@ -1310,14 +1391,36 @@ function startLivePreviewLoop() {
                     return;
                 }
 
-                const spkType = img.getAttribute('data-type');
-                const offset = parseInt(img.getAttribute('data-offset') || '0', 10);
+                const idx = parseInt(img.getAttribute('data-idx') || '-1', 10);
+                const sparkle = (idx >= 0 && state.sparkles[idx]) ? state.sparkles[idx] : null;
+                const spkType = img.getAttribute('data-type') || (sparkle ? sparkle.sparkle_type : '2');
                 const preset = SPARKLE_PRESETS[spkType];
                 if (!preset || !preset.frameCount) return;
 
-                const count = preset.frameCount;
-                const animFrame = Math.floor(Math.max(0, (animTickFrame + offset) * speed)) % count;
-                const url = getSparkleFrameDataUrl(spkType, animFrame);
+                const offset = parseInt(img.getAttribute('data-offset') || '0', 10);
+                const gap = parseInt(img.getAttribute('data-gap') || '25', 10);
+                const sparkleTiming = sparkle || {
+                    start_frame: start,
+                    end_frame: end,
+                    initial_delay: offset,
+                    frame_offset: offset,
+                    gap_duration: gap
+                };
+
+                const animInfo = getAnimatedSparkleFrameAndOpacity(animTickFrame, sparkleTiming, preset, speed);
+                if (!animInfo.visible || animInfo.opacity <= 0.005) {
+                    img.setAttribute('opacity', '0');
+                    return;
+                }
+
+                const isBloom = img.classList.contains('sparkle-bloom-layer');
+                const bloomOpacityMult = isBloom
+                    ? Math.min(1.0, (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * Math.min(2.0, (sparkleKeySettings.bloomStrength || 1.2)))
+                    : 1.0;
+                const finalOpacity = animInfo.opacity * globalOpacity * bloomOpacityMult;
+                img.setAttribute('opacity', finalOpacity.toFixed(3));
+
+                const url = getSparkleFrameDataUrl(spkType, animInfo.frame);
                 if (url && url.startsWith('data:image')) {
                     if (img.getAttribute('href') !== url) {
                         img.setAttribute('href', url);
@@ -1340,8 +1443,13 @@ function startLivePreviewLoop() {
 
                 if (state.isVideo && (currentVideoFrame < start || currentVideoFrame > end)) {
                     el.setAttribute('opacity', '0');
+                    el.setAttribute('width', '0');
+                    el.setAttribute('height', '0');
                     return;
                 }
+
+                const idx = parseInt(el.getAttribute('data-idx') || '-1', 10);
+                const sparkle = (idx >= 0 && state.sparkles[idx]) ? state.sparkles[idx] : null;
 
                 const offset = parseInt(el.getAttribute('data-offset') || '0', 10);
                 const gap = parseInt(el.getAttribute('data-gap') || '25', 10);
@@ -1350,13 +1458,21 @@ function startLivePreviewLoop() {
                 const cy = parseFloat(el.getAttribute('data-cy') || '0');
                 const isBloom = el.classList.contains('sparkle-bloom-layer');
 
-                const factor = getSparklePulseFactor(animTickFrame, { frame_offset: offset, gap_duration: gap });
+                const sparkleTiming = sparkle || {
+                    start_frame: start,
+                    end_frame: end,
+                    initial_delay: offset,
+                    frame_offset: offset,
+                    gap_duration: gap
+                };
+
+                const factor = getSparklePulseFactor(animTickFrame, sparkleTiming);
 
                 const minPx = sizeMin * mult * (refW / 600);
                 const maxPx = sizeMax * mult * (refW / 600);
                 const curSize = minPx + (maxPx - minPx) * factor;
 
-                if (curSize <= 0.5 || factor <= 0.01) {
+                if (curSize <= 0.5 || factor <= 0.005) {
                     el.setAttribute('opacity', '0');
                     el.setAttribute('width', '0');
                     el.setAttribute('height', '0');
@@ -1427,6 +1543,7 @@ function drawSparkles() {
     const hasBloom = sparkleKeySettings.bloomEnabled && bloomStrength > 0 && bloomOpacity > 0;
 
     state.sparkles.forEach((sparkle, idx) => {
+        ensureSparkleProperties(sparkle, idx);
         // W przestrzeni viewBox (0 0 sourceWidth sourceHeight) współrzędne to dokładnie sparkle.x i sparkle.y
         const svgX = sparkle.x;
         const svgY = sparkle.y;
@@ -1455,10 +1572,12 @@ function drawSparkles() {
 
         const count = preset.frameCount || 41;
         const speed = state.sparkleAnimSpeed !== undefined ? state.sparkleAnimSpeed : 1.0;
-        const rawFrame = (sparkle.timing_mode === 'manual' ? Math.max(0, currentFrame - start) : (currentFrame + (sparkle.frame_offset || 0)));
-        const animFrame = isAnim ? (Math.floor(Math.max(0, rawFrame * speed)) % count) : 0;
+        const animInfo = isAnim ? getAnimatedSparkleFrameAndOpacity(currentFrame, sparkle, preset, speed) : null;
+        const animFrame = (animInfo && animInfo.visible) ? animInfo.frame : 0;
         const frameUrl = isAnim ? getSparkleFrameDataUrl(spkType, animFrame) : getCurrentSparkleTextureSrc();
         const activeUrl = (frameUrl && frameUrl.startsWith('data:image')) ? frameUrl : getCurrentSparkleTextureSrc();
+
+        const initialDelay = sparkle.initial_delay !== undefined ? sparkle.initial_delay : (sparkle.frame_offset || 0);
 
         // 1. Bloom Layer (z osobnym trybem mieszania, przeźroczystością, siłą i promieniem)
         if (hasBloom) {
@@ -1466,7 +1585,8 @@ function drawSparkles() {
             bloomImg.setAttribute('class', isAnim ? 'sparkle-animated-item sparkle-bloom-layer' : 'sparkle-bloom-layer sparkle-static-pulse');
             bloomImg.setAttribute('data-idx', idx.toString());
             bloomImg.setAttribute('data-type', spkType);
-            bloomImg.setAttribute('data-offset', (sparkle.frame_offset || 0).toString());
+            bloomImg.setAttribute('data-offset', initialDelay.toString());
+            bloomImg.setAttribute('data-initial-delay', initialDelay.toString());
             bloomImg.setAttribute('data-gap', (sparkle.gap_duration !== undefined ? sparkle.gap_duration : 25).toString());
             bloomImg.setAttribute('data-mult', (sparkle.size_multiplier !== undefined ? sparkle.size_multiplier : 1.0).toString());
             bloomImg.setAttribute('data-cx', svgX.toString());
@@ -1499,7 +1619,8 @@ function drawSparkles() {
         spriteImg.setAttribute('class', isAnim ? 'sparkle-animated-item' : 'sparkle-core-layer sparkle-static-pulse');
         spriteImg.setAttribute('data-idx', idx.toString());
         spriteImg.setAttribute('data-type', spkType);
-        spriteImg.setAttribute('data-offset', (sparkle.frame_offset || 0).toString());
+        spriteImg.setAttribute('data-offset', initialDelay.toString());
+        spriteImg.setAttribute('data-initial-delay', initialDelay.toString());
         spriteImg.setAttribute('data-gap', (sparkle.gap_duration !== undefined ? sparkle.gap_duration : 25).toString());
         spriteImg.setAttribute('data-mult', (sparkle.size_multiplier !== undefined ? sparkle.size_multiplier : 1.0).toString());
         spriteImg.setAttribute('data-cx', svgX.toString());
@@ -2654,6 +2775,7 @@ function applySettingsObject(settings) {
     // Sparkles coordinates
     if (settings.sparkles) {
         state.sparkles = settings.sparkles;
+        state.sparkles.forEach((s, idx) => ensureSparkleProperties(s, idx));
         updateSparklesDisplay();
         drawSparkles();
         renderTimelineTracks();
@@ -3176,14 +3298,14 @@ async function generateClientSide(type) {
     // Inicjalizacja błysków
     let sparklesList = [];
     if (type === 'sparkles' || type === 'pipeline') {
-        sparklesList = state.sparkles.map(s => {
+        sparklesList = state.sparkles.map((s, idx) => {
+            ensureSparkleProperties(s, idx);
             const spkType = s.sparkle_type || state.selectedSparkleType || '1';
             const isAnim = spkType !== '1' && SPARKLE_PRESETS[spkType] && SPARKLE_PRESETS[spkType].isAnimated;
             const sEnd = (s.end_frame !== undefined && s.end_frame > 0) ? s.end_frame : totalFrames;
             const sStart = (s.start_frame !== undefined && s.start_frame < sEnd) ? s.start_frame : 0;
-            const gapMin = (typeof sparkleGapMinInput !== 'undefined' && sparkleGapMinInput) ? Math.max(0, parseInt(sparkleGapMinInput.value, 10) || 15) : 15;
-            const gapMax = (typeof sparkleGapMaxInput !== 'undefined' && sparkleGapMaxInput) ? Math.max(gapMin, parseInt(sparkleGapMaxInput.value, 10) || 45) : 45;
-            const gapDur = (s.gap_duration !== undefined) ? s.gap_duration : (Math.floor(Math.random() * (gapMax - gapMin + 1)) + gapMin);
+            const gapDur = (s.gap_duration !== undefined) ? s.gap_duration : 25;
+            const initDelay = (s.initial_delay !== undefined) ? s.initial_delay : ((s.frame_offset !== undefined) ? s.frame_offset : 0);
 
             return {
                 x: s.x,
@@ -3196,7 +3318,8 @@ async function generateClientSide(type) {
                 start_frame: sStart,
                 end_frame: sEnd,
                 timing_mode: s.timing_mode || 'manual',
-                frame_offset: s.frame_offset !== undefined ? s.frame_offset : Math.floor(Math.random() * 120),
+                initial_delay: initDelay,
+                frame_offset: initDelay,
                 gap_duration: gapDur,
                 should_appear: true
             };
@@ -3357,6 +3480,13 @@ async function generateClientSide(type) {
                         if (curFrame < s.start_frame || curFrame > s.end_frame) return;
                     }
                     
+                    const preset = SPARKLE_PRESETS[spkType];
+                    const speed = state.sparkleAnimSpeed !== undefined ? state.sparkleAnimSpeed : 1.0;
+                    const animInfo = getAnimatedSparkleFrameAndOpacity(curFrame, s, preset, speed);
+
+                    if (!animInfo.visible || animInfo.opacity <= 0.005) return;
+                    const animFrame = animInfo.frame;
+
                     const renderSparkleSize = getSparkleSize(s, drawParams.dstW);
                     const renderSparkleX = drawParams.dstX + (s.x / state.sourceWidth) * drawParams.dstW;
                     const renderSparkleY = drawParams.dstY + (s.y / state.sourceHeight) * drawParams.dstH;
@@ -3365,11 +3495,7 @@ async function generateClientSide(type) {
                     const dw = renderSparkleSize;
                     const dh = renderSparkleSize;
 
-                    const preset = SPARKLE_PRESETS[spkType];
                     const count = preset.frameCount || 41;
-                    const speed = state.sparkleAnimSpeed !== undefined ? state.sparkleAnimSpeed : 1.0;
-                    const rawFrame = (s.timing_mode === 'manual' ? Math.max(0, (curFrame - s.start_frame)) : (curFrame + s.frame_offset));
-                    const animFrame = Math.floor(rawFrame * speed) % count;
                     const cols = preset.cols || 8;
                     const rows = Math.ceil(count / cols);
                     const col = animFrame % cols;
@@ -3388,6 +3514,8 @@ async function generateClientSide(type) {
                                 targetCtx.drawImage(spriteSource, col * srcW, row * srcH, srcW, srcH, dx, dy, dw, dh);
                             }
                         };
+
+                        const animEffectiveAlpha = animInfo.opacity * opacityMax;
 
                         // Bloom Layer
                         if (sparkleKeySettings.bloomEnabled && (sparkleKeySettings.bloomStrength || 0) > 0 && (sparkleKeySettings.bloomOpacity || 0) > 0) {
@@ -3414,7 +3542,7 @@ async function generateClientSide(type) {
                             }
                             bCtx.shadowColor = sparkleKeySettings.bloomColor || '#ffffff';
                             bCtx.shadowBlur = blurRadius;
-                            const bAlpha = (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * opacityMax * Math.min(2.0, (sparkleKeySettings.bloomStrength || 1.2));
+                            const bAlpha = (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * animEffectiveAlpha * Math.min(2.0, (sparkleKeySettings.bloomStrength || 1.2));
                             bCtx.globalAlpha = Math.max(0.0, Math.min(1.0, bAlpha));
                             drawSingle(bCtx);
                             bCtx.restore();
@@ -3423,7 +3551,7 @@ async function generateClientSide(type) {
                         // Core frame
                         bCtx.save();
                         bCtx.globalCompositeOperation = currentSparkleBlend;
-                        bCtx.globalAlpha = opacityMax;
+                        bCtx.globalAlpha = animEffectiveAlpha;
                         const spkIntensityAnim = getSparkleConfigIntensity();
                         const coreBlurAnim = getSparkleGaussianBlurRadius();
                         let animFilterParts = [];
@@ -3440,7 +3568,7 @@ async function generateClientSide(type) {
                         drawSingle(bCtx);
                         if (spkIntensityAnim > 1.2) {
                             bCtx.globalCompositeOperation = 'lighter';
-                            bCtx.globalAlpha = Math.min(1.0, opacityMax * Math.min(1.0, (spkIntensityAnim - 1.0) * 0.8));
+                            bCtx.globalAlpha = Math.min(1.0, animEffectiveAlpha * Math.min(1.0, (spkIntensityAnim - 1.0) * 0.8));
                             drawSingle(bCtx);
                         }
                         bCtx.restore();
