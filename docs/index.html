@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snow Sparkle Generator - Generator Śnieżynek & Błysków</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="logo-icon">❄️</span>
+                <div class="logo-text">
+                    <h1>Snow Sparkle Generator</h1>
+                    <p>Generator Śnieżynek & Błysków Pro</p>
+                </div>
+            </div>
+            <div class="header-actions" style="display: flex; gap: 10px;">
+                <button id="btn-generate-sparkles" class="btn btn-secondary">
+                    <span class="icon">✨</span> Generate Sparkles
+                </button>
+                <button id="btn-generate-snow" class="btn btn-secondary">
+                    <span class="icon">❄️</span> Generate Snow
+                </button>
+                <button id="btn-generate-both" class="btn btn-primary btn-glow">
+                    <span class="icon">🚀</span> Generate Snow and Sparkle
+                </button>
+                <button id="btn-info" class="btn btn-secondary" title="Instrukcja i skróty" style="display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; font-size: 1.1rem; border-radius: var(--radius-md);">
+                    ℹ️
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="app-main">
+            <!-- LEFT PANEL: SETTINGS -->
+            <section class="panel settings-panel">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="tab-files">📁 Pliki</button>
+                    <button class="tab-btn" data-tab="tab-snow">❄️ Śnieżynki</button>
+                    <button class="tab-btn" data-tab="tab-sparkles">✨ Błyski</button>
+                </div>
+
+                <div class="tab-content active" id="tab-files">
+                    <div class="card">
+                        <h3>Pliki źródłowe</h3>
+                        <div class="form-group upload-zone" id="upload-dropzone">
+                            <input type="file" id="file-upload-input" accept="image/*,video/*,.jpg,.jpeg,.png,.mp4,.webm,.svg" style="display:none">
+                            <div class="upload-content">
+                                <span class="upload-icon">📤</span>
+                                <p>Przeciągnij plik tutaj lub <strong>kliknij aby dodać tło wideo/obraz oraz tekstury</strong></p>
+                                <p class="help-text">Obsługuje SVG, JPG, PNG, MP4. (Wgraj własne płatki śniegu i błyski!)</p>
+                            </div>
+                        </div>
+
+
+
+                        <div class="form-group">
+                            <label for="snowflake-texture-select">Tekstura śnieżynki:</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="snowflake-texture-select" class="form-control" style="flex: 1;">
+                                    <option value="assets/snieg_blysk.png">snieg_blysk.png (Domyślna)</option>
+                                </select>
+                                <button id="btn-upload-snow" class="btn btn-secondary" onclick="document.getElementById('snow-upload-input').click()">Wgraj własną</button>
+                                <input type="file" id="snow-upload-input" accept=".png,.jpg,.jpeg,.svg" style="display:none">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="sparkle-texture-select">Wybór błysku (1, 2, 3, 4):</label>
+                            <div style="display: flex; gap: 10px;">
+                                <select id="sparkle-texture-select" class="form-control" style="flex: 1;">
+                                    <option value="1" selected>1 - blysk.png (Normalny statyczny)</option>
+                                    <option value="2">2 - animowany_snowdrop_01.mp4 (Wideo)</option>
+                                    <option value="3">3 - animowany_blysk_01.mp4 (Wideo)</option>
+                                    <option value="4">4 - animowana_sniezynka_01.mp4 (Wideo)</option>
+                                </select>
+                                <button id="btn-upload-sparkle" class="btn btn-secondary" onclick="document.getElementById('sparkle-upload-input').click()">Wgraj własną</button>
+                                <input type="file" id="sparkle-upload-input" accept=".png,.jpg,.jpeg,.svg" style="display:none">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="export-resolution-select">Jakość / Rozdzielczość wideo:</label>
+                            <select id="export-resolution-select" class="form-control">
+                                <option value="original" selected>Domyślne [czyli takie jak pliku]</option>
+                                <option value="210x240">210x240 [A4]</option>
+                                <option value="hd">HD (1280x720)</option>
+                                <option value="fullhd">FullHD (1920x1080)</option>
+                            </select>
+                            <small class="help-text" style="color: var(--color-text-muted); display: block; margin-top: 5px;">
+                                Dopasowanie: jeśli za duże &ndash; zostaną czarne paski w tle; jeśli za małe &ndash; ucięcie wideo.
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="export-format-select">Format zapisu wideo:</label>
+                            <select id="export-format-select" class="form-control">
+                                <option value="auto" selected>Automatyczny (Zalecany)</option>
+                                <option value="mp4">MP4 (H.264)</option>
+                                <option value="webm">WebM (VP9/VP8)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="output-name">Nazwa pliku wyjściowego:</label>
+                            <input type="text" id="output-name" value="Blask_ze_sniegiem.mp4" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Konfiguracja filmu</h3>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="video-duration">Czas trwania (sek):</label>
+                                <input type="number" id="video-duration" value="8" min="1" max="120" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="video-fps">FPS:</label>
+                                <input type="number" id="video-fps" value="30" min="10" max="60" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-snow">
+                    <div class="card">
+                        <h3>Generator śniegu</h3>
+                        <div class="form-group">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <label for="snow-density" style="margin: 0; font-weight: 500;">Liczba płatków:</label>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="snow-density-input" min="10" max="5000" step="10" value="450" class="form-control" style="width: 80px; height: 28px; padding: 2px 6px; text-align: center; font-weight: 600; font-size: 0.85rem;" title="Wpisz liczbę płatków śniegu (np. 450, 1000)">
+                                    <span style="font-size: 0.8rem; color: var(--color-text-muted);">szt.</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" id="snow-density" min="10" max="2500" value="450" class="range-slider" style="flex: 1;">
+                                <span class="range-value" id="snow-density-val" style="min-width: 45px; text-align: right;">450</span>
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="snow-min-size">Rozmiar min (px):</label>
+                                <input type="number" id="snow-min-size" value="3" min="1" max="50" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="snow-max-size">Rozmiar max (px):</label>
+                                <input type="number" id="snow-max-size" value="12" min="1" max="100" class="form-control">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="snow-opacity">Przezroczystość (0-255):</label>
+                            <input type="range" id="snow-opacity" min="10" max="255" value="220" class="range-slider">
+                            <span class="range-value" id="snow-opacity-val">220</span>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Głębia i Paralaksa (Pseudo 3D)</h3>
+                        <div class="form-group">
+                            <label for="snow-depth-layers">Warstwy głębi:</label>
+                            <input type="number" id="snow-depth-layers" value="12" min="1" max="30" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="snow-depth-strength">Siła głębi:</label>
+                            <input type="range" id="snow-depth-strength" min="0" max="1" step="0.1" value="0.8" class="range-slider">
+                            <span class="range-value" id="snow-depth-strength-val">0.8</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="snow-parallax-speed">Prędkość paralaksy:</label>
+                            <input type="range" id="snow-parallax-speed" min="0" max="2" step="0.1" value="1.0" class="range-slider">
+                            <span class="range-value" id="snow-parallax-speed-val">1.0</span>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Efekt 3D & Rozmycie Obiektywu (DOF)</h3>
+                        <div class="form-group">
+                            <label for="snow-dof-focus">Punkt ostrości (Focus Plane):</label>
+                            <input type="range" id="snow-dof-focus" min="0.0" max="1.0" step="0.1" value="0.5" class="range-slider">
+                            <span class="range-value" id="snow-dof-focus-val">0.5</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="snow-dof-blur">Siła rozmycia (DoF Blur):</label>
+                            <input type="range" id="snow-dof-blur" min="0.0" max="3.0" step="0.1" value="1.0" class="range-slider">
+                            <span class="range-value" id="snow-dof-blur-val">1.0</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="snow-dof-haze">Mgła atmosferyczna (Haze):</label>
+                            <input type="range" id="snow-dof-haze" min="0.0" max="1.0" step="0.1" value="0.3" class="range-slider">
+                            <span class="range-value" id="snow-dof-haze-val">0.3</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="snow-dof-lens-fade">Zanikanie przed obiektywem:</label>
+                            <input type="range" id="snow-dof-lens-fade" min="0.0" max="1.0" step="0.1" value="0.5" class="range-slider">
+                            <span class="range-value" id="snow-dof-lens-fade-val">0.5</span>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Opadanie i Wiatr</h3>
+                        <div class="form-group">
+                            <label for="snow-fall-mode">Tryb prędkości opadania:</label>
+                            <select id="snow-fall-mode" class="form-control">
+                                <option value="uniform">Jednolity (Uniform)</option>
+                                <option value="accelerated">Zmienny / Przyspieszony (Accelerated)</option>
+                            </select>
+                        </div>
+                        <div id="snow-fall-uniform-settings">
+                            <div class="form-group">
+                                <label for="snow-fall-speed">Prędkość opadania (px/klatkę):</label>
+                                <input type="number" id="snow-fall-speed" step="0.1" value="1.5" class="form-control">
+                            </div>
+                        </div>
+                        <div id="snow-fall-accel-settings" style="display:none">
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label for="snow-fall-min">Prędkość min:</label>
+                                    <input type="number" id="snow-fall-min" step="0.1" value="0.5" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="snow-fall-max">Prędkość max:</label>
+                                    <input type="number" id="snow-fall-max" step="0.1" value="3.0" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid-3">
+                            <div class="form-group">
+                                <label for="snow-wind-x">Wiatr X:</label>
+                                <input type="number" id="snow-wind-x" step="0.1" value="2.0" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="snow-wind-y">Wiatr Y:</label>
+                                <input type="number" id="snow-wind-y" step="0.1" value="0.5" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="snow-wind-z">Wiatr Z:</label>
+                                <input type="number" id="snow-wind-z" step="0.1" value="1.5" class="form-control">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="snow-wind-strength">Siła wiatru:</label>
+                                <input type="number" id="snow-wind-strength" step="0.5" value="15.0" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="snow-wind-gust">Częst. porywów:</label>
+                                <input type="number" id="snow-wind-gust" step="0.01" value="0.05" class="form-control">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="snow-turbulence">Turbulencja:</label>
+                                <input type="number" id="snow-turbulence" step="0.1" value="0.5" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="snow-randomness">Losowość ruchu:</label>
+                                <input type="number" id="snow-randomness" step="0.1" value="0.6" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Efekty wizualne i Zanikanie</h3>
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="snow-enable-fade" checked>
+                            <label for="snow-enable-fade">Włącz zanikanie płatków na dole</label>
+                        </div>
+                        <div id="snow-fade-settings">
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label for="snow-fade-start">Start zanikania (%):</label>
+                                    <input type="number" id="snow-fade-start" value="60" min="0" max="100" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="snow-fade-end">Koniec zanikania (%):</label>
+                                    <input type="number" id="snow-fade-end" value="95" min="0" max="100" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="snow-blur">Rozmycie (Blur radius):</label>
+                                <input type="number" id="snow-blur" value="1" min="0" max="10" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="snow-glow">Moc świecenia (Glow):</label>
+                                <input type="number" id="snow-glow" step="0.1" value="0.5" class="form-control">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="snow-blend-mode">Tryb mieszania (Blend Mode):</label>
+                            <select id="snow-blend-mode" class="form-control">
+                                <option value="normal">Normal (Standardowy / Zwykły - zalecany na wideo)</option>
+                                <option value="addition">Addition (Dodawanie - zalecane)</option>
+                                <option value="screen">Screen (Ekran)</option>
+                                <option value="overlay">Overlay (Nakładka)</option>
+                                <option value="multiply">Multiply (Mnożenie)</option>
+                                <option value="soft_light">Soft Light (Miękkie światło)</option>
+                                <option value="hard_light">Hard Light (Ostre światło)</option>
+                            </select>
+                        </div>
+                        <div class="action-buttons" style="margin-top: 15px;">
+                            <button id="btn-generate-snow" class="btn btn-secondary w-full btn-generate-snow">❄️ Generuj tylko Śnieg</button>
+                            <button id="btn-generate-both-snow" class="btn btn-primary btn-glow w-full btn-generate-both" style="margin-top: 8px;">🚀 Generuj Śnieg i Błyski</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-sparkles">
+                    <!-- Sparkle Preset (1, 2, 3, 4) Card -->
+                    <div class="card">
+                        <h3>Wybór typu błysku (1, 2, 3, 4)</h3>
+                        <div class="form-group">
+                            <label for="sparkle-preset-select">Wybierz animację / teksturę błysku:</label>
+                            <select id="sparkle-preset-select" class="form-control">
+                                <option value="1" selected>1 - Normalny (statyczny: assets/blysk.png)</option>
+                                <option value="2">2 - Animowany Snowdrop 01 (wideo: animowany_snowdrop_01.mp4)</option>
+                                <option value="3">3 - Animowany Błysk 01 (wideo: animowany_blysk_01.mp4)</option>
+                                <option value="4">4 - Animowana Śnieżynka 01 (wideo: animowana_sniezynka_01.mp4)</option>
+                            </select>
+                        </div>
+                        <div class="quick-preset-buttons" style="display: flex; gap: 6px; margin-bottom: 8px;">
+                            <button type="button" class="btn btn-secondary btn-sparkle-preset active" data-preset="1" style="flex: 1; padding: 7px 4px; font-size: 0.8rem; font-weight: 500;" title="Klawisz skrótu: 1"><span style="background: rgba(255,255,255,0.18); border-radius: 3px; padding: 1px 5px; margin-right: 4px; font-weight: 700; font-family: monospace;">1</span>Normalny</button>
+                            <button type="button" class="btn btn-secondary btn-sparkle-preset" data-preset="2" style="flex: 1; padding: 7px 4px; font-size: 0.8rem; font-weight: 500;" title="Klawisz skrótu: 2"><span style="background: rgba(255,255,255,0.18); border-radius: 3px; padding: 1px 5px; margin-right: 4px; font-weight: 700; font-family: monospace;">2</span>Snowdrop</button>
+                            <button type="button" class="btn btn-secondary btn-sparkle-preset" data-preset="3" style="flex: 1; padding: 7px 4px; font-size: 0.8rem; font-weight: 500;" title="Klawisz skrótu: 3"><span style="background: rgba(255,255,255,0.18); border-radius: 3px; padding: 1px 5px; margin-right: 4px; font-weight: 700; font-family: monospace;">3</span>Błysk 01</button>
+                            <button type="button" class="btn btn-secondary btn-sparkle-preset" data-preset="4" style="flex: 1; padding: 7px 4px; font-size: 0.8rem; font-weight: 500;" title="Klawisz skrótu: 4"><span style="background: rgba(255,255,255,0.18); border-radius: 3px; padding: 1px 5px; margin-right: 4px; font-weight: 700; font-family: monospace;">4</span>Śnieżynka</button>
+                        </div>
+                    </div>
+
+                    <!-- Chroma Keying & Bloom Settings Card for Video Sparkles 2, 3, 4 -->
+                    <div class="card" id="card-video-sparkle-effects">
+                        <h3>Kluczowanie koloru, Blask & Szybkość animacji</h3>
+                        <p class="help-text" style="color: var(--color-text-muted); margin-bottom: 12px; font-size: 0.82rem;">
+                            Ustawienia kluczowania tła, poświaty i tempa animacji wideo (błyski 2: Snowdrop, 3: Błysk 01, 4: Śnieżynka).
+                        </p>
+
+                        <!-- Szybkość animacji wideo -->
+                        <div class="form-group" id="sparkle-anim-speed-group" style="background: rgba(56, 189, 248, 0.06); padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid rgba(56, 189, 248, 0.2); margin-bottom: 14px;">
+                            <label for="sparkle-anim-speed" style="font-weight: 600; color: #38bdf8;">⚡ Szybkość animacji wideo (Snowdrop, Błysk, Śnieżynka):</label>
+                            <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+                                <span style="font-size: 0.78rem; color: var(--color-text-muted);">Wolno</span>
+                                <input type="range" id="sparkle-anim-speed" min="0.2" max="3.0" step="0.1" value="1.0" class="range-slider" style="flex: 1;">
+                                <span style="font-size: 0.78rem; color: var(--color-text-muted);">Szybko</span>
+                                <span class="range-value" id="sparkle-anim-speed-val" style="min-width: 45px; text-align: right; font-weight: 700; color: #38bdf8;">1.0x</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="sparkle-key-enable" checked>
+                            <label for="sparkle-key-enable">Włącz kluczowanie koloru tła (Chroma Key)</label>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="sparkle-key-color">Kolor kluczowania:</label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="color" id="sparkle-key-color" value="#000000" style="width: 44px; height: 36px; padding: 2px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); cursor: pointer;">
+                                    <span id="sparkle-key-color-val" style="font-family: monospace; font-size: 0.85rem; color: var(--color-text-muted);">#000000</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-key-tolerance">Tolerancja kluczowania:</label>
+                                <input type="range" id="sparkle-key-tolerance" min="0" max="100" value="25" class="range-slider">
+                                <span class="range-value" id="sparkle-key-tolerance-val">25%</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="sparkle-key-smoothness">Wygładzenie krawędzi (Feather):</label>
+                            <input type="range" id="sparkle-key-smoothness" min="0" max="50" value="15" class="range-slider">
+                            <span class="range-value" id="sparkle-key-smoothness-val">15%</span>
+                        </div>
+
+                        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 15px 0;">
+
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="sparkle-bloom-enable" checked>
+                            <label for="sparkle-bloom-enable">Włącz efekt blasku (Bloom)</label>
+                        </div>
+
+                        <!-- Tryb mieszania Bloom -->
+                        <div class="form-group">
+                            <label for="sparkle-bloom-blend-mode">Tryb mieszania blasku (Bloom Blend Mode):</label>
+                            <select id="sparkle-bloom-blend-mode" class="form-control">
+                                <option value="normal">Normal (Standardowy / Zwykły)</option>
+                                <option value="screen" selected>Screen (Ekran - jasny)</option>
+                                <option value="addition">Addition (Dodawanie / Lighter)</option>
+                                <option value="overlay">Overlay (Nakładka)</option>
+                                <option value="soft_light">Soft Light (Łagodne światło)</option>
+                                <option value="hard_light">Hard Light (Mocne światło)</option>
+                                <option value="color_dodge">Color Dodge (Rozjaśnianie)</option>
+                            </select>
+                        </div>
+
+                        <!-- Wpisywana intensywność, promień oraz przeźroczystość -->
+                        <div class="grid-3" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                            <div class="form-group">
+                                <label for="sparkle-bloom-strength">Intensywność:</label>
+                                <input type="number" id="sparkle-bloom-strength" min="0" max="10.0" step="0.1" value="1.2" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz intensywność blasku (np. 1.2, 0.5, 2.0)">
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-bloom-radius">Promień (px):</label>
+                                <input type="number" id="sparkle-bloom-radius" min="0" max="300" step="1" value="15" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz promień rozmycia w pikselach (np. 15, 30, 50)">
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-bloom-opacity">Przeźroczystość:</label>
+                                <input type="number" id="sparkle-bloom-opacity" min="0" max="1.0" step="0.05" value="1.0" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz przeźroczystość blasku od 0.0 do 1.0 (np. 1.0, 0.7, 0.5)">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 8px;">
+                            <label for="sparkle-bloom-color">Kolor poświaty (Bloom):</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="color" id="sparkle-bloom-color" value="#ffffff" style="width: 44px; height: 36px; padding: 2px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); cursor: pointer;">
+                                <input type="text" id="sparkle-bloom-color-val" value="#ffffff" class="form-control" style="width: 110px; font-family: monospace; text-align: center;" title="Kod HEX koloru poświaty">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" id="card-sparkle-animation-params">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h3 style="margin: 0;">Parametry animacji błysków</h3>
+                            <span id="sparkle-anim-badge" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 12px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">Tylko dla 1: blysk.png</span>
+                        </div>
+                        <p id="sparkle-anim-notice" class="help-text" style="color: var(--color-text-muted); margin-bottom: 12px; font-size: 0.82rem;">
+                            Poniższe efekty (miganie, pulsowanie, fade in/out, jitter) działają wyłącznie na statyczny <strong>blysk.png</strong>. Animowane wideo (Snowdrop, Błysk 01, Śnieżynka) posiadają własny, płynny ruch klatek i nie są sztucznie gaszone.
+                        </p>
+                        <div class="grid-3">
+                            <div class="form-group">
+                                <label for="sparkle-fade-in">Fade In (klatki):</label>
+                                <input type="number" id="sparkle-fade-in" value="10" min="0" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-hold">Hold (klatki):</label>
+                                <input type="number" id="sparkle-hold" value="5" min="0" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-fade-out">Fade Out (klatki):</label>
+                                <input type="number" id="sparkle-fade-out" value="10" min="0" class="form-control">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="sparkle-gap-min">Pauza Min (klatki):</label>
+                                <input type="number" id="sparkle-gap-min" value="15" min="0" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-gap-max">Pauza Max (klatki):</label>
+                                <input type="number" id="sparkle-gap-max" value="45" min="0" class="form-control">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="sparkle-frequency">Częstotliwość pojawiania się (0.0 - 1.0):</label>
+                            <input type="range" id="sparkle-frequency" min="0" max="1" step="0.05" value="0.75" class="range-slider">
+                            <span class="range-value" id="sparkle-frequency-val">0.75</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="sparkle-jitter">Wibracja blasku (Jitter):</label>
+                            <input type="range" id="sparkle-jitter" min="0" max="2" step="0.1" value="0.6" class="range-slider">
+                            <span class="range-value" id="sparkle-jitter-val">0.6</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="sparkle-stability">Stabilność animacji:</label>
+                            <select id="sparkle-stability" class="form-control">
+                                <option value="natural">Naturalna (zmienna)</option>
+                                <option value="stable">Stabilna</option>
+                                <option value="cinematic">Kinowa (płynna i wolna)</option>
+                            </select>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="sparkle-smooth-anim" checked>
+                            <label for="sparkle-smooth-anim">Gładka animacja (Smooth)</label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="sparkle-enable-blinking" checked>
+                            <label for="sparkle-enable-blinking">Miganie błysków (Blinking)</label>
+                        </div>
+                        <div class="form-group" id="sparkle-blinking-speed-container">
+                            <label for="sparkle-blinking-speed">Szybkość migania (mnożnik):</label>
+                            <input type="range" id="sparkle-blinking-speed" min="0.1" max="3.0" step="0.1" value="1.0" class="range-slider">
+                            <span class="range-value" id="sparkle-blinking-speed-val">1.0</span>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Rozmiar i wygląd błysku</h3>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="sparkle-size-min">Rozmiar min (px):</label>
+                                <input type="number" id="sparkle-size-min" value="8" min="1" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-size-max">Rozmiar max (px):</label>
+                                <input type="number" id="sparkle-size-max" value="24" min="1" class="form-control">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <label for="sparkle-opacity" style="margin: 0; font-weight: 500;">Przeźroczystość błysku:</label>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="sparkle-opacity-input" min="0" max="1.0" step="0.05" value="1.0" class="form-control" style="width: 75px; height: 28px; padding: 2px 6px; text-align: center; font-weight: 600; font-size: 0.85rem;" title="Wpisz wartość przeźroczystości błysku od 0.0 do 1.0 (np. 1.0, 0.8, 0.5)">
+                                    <span style="font-size: 0.8rem; color: var(--color-text-muted);">(0.0 - 1.0)</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" id="sparkle-opacity" min="0" max="255" value="255" class="range-slider" style="flex: 1;">
+                                <span class="range-value" id="sparkle-opacity-val" style="min-width: 45px; text-align: right; font-weight: 600;">100%</span>
+                            </div>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="sparkle-use-blur" checked>
+                            <label for="sparkle-use-blur">Rozmycie krawędzi (Gaussian Blur)</label>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="sparkle-size-smoothing" checked>
+                            <label for="sparkle-size-smoothing">Wygładzanie rozmiaru (Size smoothing)</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="sparkle-blend-mode">Tryb mieszania błysków (Blend Mode):</label>
+                            <select id="sparkle-blend-mode" class="form-control">
+                                <option value="normal">Normal (Standardowy / Źródłowy - zalecany na wideo)</option>
+                                <option value="screen" selected>Screen (Ekran - jasny)</option>
+                                <option value="addition">Addition (Dodawanie / Lighter)</option>
+                                <option value="overlay">Overlay (Nakładka)</option>
+                                <option value="soft_light">Soft Light (Łagodne światło)</option>
+                                <option value="hard_light">Hard Light (Mocne światło)</option>
+                                <option value="color_dodge">Color Dodge (Rozjaśnianie)</option>
+                                <option value="multiply">Multiply (Mnożenie)</option>
+                                <option value="darken">Darken (Przyciemnianie)</option>
+                            </select>
+                            <small class="help-text" style="color: var(--color-text-muted); display: block; margin-top: 5px;">
+                                Na jasnych tłach i wideo wybierz <strong>Normal</strong> lub <strong>Addition</strong>, aby błyski były w 100% wyraźne i nasycone.
+                            </small>
+                        </div>
+                        <div class="action-buttons" style="margin-top: 15px;">
+                            <button id="btn-generate-sparkles" class="btn btn-secondary w-full btn-generate-sparkles">✨ Generuj tylko Błyski</button>
+                            <button id="btn-generate-both-sparkles" class="btn btn-primary btn-glow w-full btn-generate-both" style="margin-top: 8px;">🚀 Generuj Śnieg i Błyski</button>
+                        </div>
+                    </div>
+
+                    <!-- Selected Sparkle Details Card -->
+                    <div class="card" id="sparkle-details-card" style="display: none; border: 1px solid var(--color-primary); background: rgba(var(--color-primary-rgb), 0.05);">
+                        <h3 style="color: var(--color-primary); display: flex; align-items: center; justify-content: space-between;">
+                            <span>✨ Szczegóły błysku</span>
+                            <span id="sparkle-detail-close" style="cursor: pointer; font-size: 1.2rem;" title="Zamknij szczegóły">×</span>
+                        </h3>
+                        <div class="form-group">
+                            <label for="sparkle-detail-type">Typ błysku (1, 2, 3, 4):</label>
+                            <select id="sparkle-detail-type" class="form-control">
+                                <option value="1">1 - Normalny (assets/blysk.png)</option>
+                                <option value="2">2 - Animowany Snowdrop 01 (wideo)</option>
+                                <option value="3">3 - Animowany Błysk 01 (wideo)</option>
+                                <option value="4">4 - Animowana Śnieżynka 01 (wideo)</option>
+                            </select>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="sparkle-detail-idx">Indeks:</label>
+                                <input type="text" id="sparkle-detail-idx" readonly class="form-control" style="background: rgba(0,0,0,0.2)">
+                            </div>
+                            <div class="form-group" style="display: none;">
+                                <label for="sparkle-detail-layer">Warstwa:</label>
+                                <select id="sparkle-detail-layer" class="form-control">
+                                    <option value="small">Małe (S)</option>
+                                    <option value="medium">Średnie (M)</option>
+                                    <option value="large">Duże (L)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="sparkle-detail-start">Klatka startowa:</label>
+                                <input type="number" id="sparkle-detail-start" min="0" value="0" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-detail-end">Klatka końcowa:</label>
+                                <input type="number" id="sparkle-detail-end" min="0" value="100" class="form-control">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="sparkle-detail-x">Pozycja X (oryg.):</label>
+                                <input type="number" id="sparkle-detail-x" min="0" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-detail-y">Pozycja Y (oryg.):</label>
+                                <input type="number" id="sparkle-detail-y" min="0" class="form-control">
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="sparkle-detail-timing-mode">Tryb czasu:</label>
+                                <select id="sparkle-detail-timing-mode" class="form-control">
+                                    <option value="manual">Manualny (Oś czasu)</option>
+                                    <option value="blinking">Miganie (Losowe)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="sparkle-detail-size-mult">Rozmiar (mnożnik):</label>
+                                <input type="number" id="sparkle-detail-size-mult" min="0.1" step="0.1" value="1.0" class="form-control">
+                            </div>
+                        </div>
+                        <div class="action-buttons" style="margin-top: 15px;">
+                            <button id="btn-delete-selected-sparkle" class="btn btn-danger w-full">🗑️ Usuń błysk</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CENTER/RIGHT PANEL: INTERACTIVE PREVIEW & LOGS -->
+            <section class="panel preview-panel">
+                <div class="card preview-card">
+                    <div class="preview-header">
+                        <h3>Interaktywny Podgląd</h3>
+                        <div class="preview-tools" style="display: flex; align-items: center; gap: 14px; width: 100%; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="tool-label" style="font-size: 0.85rem; font-weight: 500;">Rozmiar pędzla:</span>
+                                <input type="number" id="brush-size-input" value="1.0" min="0.01" step="0.1" class="form-control" style="width: 78px; height: 32px; padding: 2px 8px; text-align: center; font-size: 0.95rem; font-weight: 600; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-card); color: var(--color-text);" title="Wpisz rozmiar pędzla (np. 1, 0.5, 2.5 - zawsze większy od 0)">
+                            </div>
+                            
+                            <div class="zoom-controls" style="display: flex; align-items: center; gap: 6px;">
+                                <span class="tool-label" style="font-size: 0.8rem; color: var(--color-text-muted);">Zoom:</span>
+                                <button type="button" id="btn-zoom-out" class="btn btn-secondary" title="Pomniejsz podgląd" style="width: 28px; height: 28px; padding: 0; font-size: 1.1rem; line-height: 1; display: flex; align-items: center; justify-content: center;">−</button>
+                                <span id="zoom-level-val" style="font-family: monospace; font-size: 0.82rem; min-width: 44px; text-align: center; color: var(--color-primary); font-weight: 600;">100%</span>
+                                <button type="button" id="btn-zoom-in" class="btn btn-secondary" title="Powiększ podgląd" style="width: 28px; height: 28px; padding: 0; font-size: 1.1rem; line-height: 1; display: flex; align-items: center; justify-content: center;">+</button>
+                                <button type="button" id="btn-zoom-reset" class="btn btn-secondary" title="Zresetuj powiększenie do 100%" style="padding: 2px 8px; font-size: 0.78rem; height: 28px;">100%</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="preview-body" id="preview-area-container">
+                        <div class="no-media-message" id="no-media-placeholder">
+                            <span>📺</span>
+                            <p>Zaznacz plik źródłowy w zakładce <strong>Pliki</strong> lub prześlij własny, aby zobaczyć podgląd i nanosić błyski.</p>
+                        </div>
+                        <div class="media-container" id="media-viewport" style="display:none">
+                            <img id="preview-image" src="" alt="Podgląd" style="display:none">
+                            <video id="preview-video" controls muted playsinline style="display:none"></video>
+                            <svg id="canvas-overlay" class="sparkles-overlay"></svg>
+                        </div>
+                    </div>
+
+                    <!-- Draggable Video Timeline Editor (Visible only for videos) -->
+                    <div id="video-timeline-editor" class="video-timeline-editor" style="display: none;">
+                        <div class="timeline-control-bar">
+                            <div class="timeline-playback-controls">
+                                <button id="btn-timeline-play" class="btn btn-mini btn-timeline-control" title="Odtwórz / Pauza">▶</button>
+                                <span id="timeline-time-info" class="timeline-time-info">Klatka: 0 / 0 | 0.00s</span>
+                            </div>
+
+                        </div>
+                        
+                        <div class="timeline-scroll-container" id="timeline-scroll-container">
+                            <!-- Ruler Row with sticky 'Czas' label matching track column -->
+                            <div class="timeline-ruler-row" id="timeline-ruler-container">
+                                <div class="track-info ruler-corner">Czas</div>
+                                <div class="ruler-content" id="ruler-content-area">
+                                    <canvas id="timeline-ruler" class="timeline-ruler"></canvas>
+                                    <div id="timeline-playhead" class="timeline-playhead"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="timeline-tracks" id="timeline-tracks">
+                                <!-- Single Timeline Track for Sparkles -->
+                                <div class="timeline-track-row" data-track-layer="sparkles">
+                                    <div class="track-info">Błyski</div>
+                                    <div class="track-content" id="track-sparkles-content"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="preview-footer">
+                        <p class="help-text">💡 <strong>Lewy Przycisk Myszy (LPM):</strong> postaw błysk w danym miejscu. <strong>Prawy Przycisk Myszy (PPM):</strong> usuń najbliższy błysk.</p>
+                    </div>
+                </div>
+
+                <div class="card sparkles-list-card">
+                    <div class="list-header card-header-clickable">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <h3 style="margin: 0;">Rozmieszczone błyski (<span id="sparkles-count">0</span>)</h3>
+                        </div>
+                        <button id="btn-clear-sparkles" class="btn btn-mini btn-danger">Wyczyść wszystkie</button>
+                    </div>
+                    <div class="sparkles-list-container">
+                        <ul id="sparkles-list" class="sparkles-list-items">
+                            <li class="empty-list-msg">Brak punktów błysków. Kliknij na podglądzie powyżej, aby dodać punkty.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- PROGRESS & LOGS -->
+                <div class="card status-card">
+                    <div class="status-card-header card-header-clickable">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <h3 style="margin: 0; font-size: 0.92rem;">Status & Logi konsoli</h3>
+                        </div>
+                        <span class="status-indicator idle" id="status-tag">Gotowy</span>
+                    </div>
+                    <div class="status-content">
+                        <div class="progress-bar-container" style="margin-top: 4px;">
+                            <div class="progress-bar-fill" id="progress-bar" style="width: 0%"></div>
+                            <span class="progress-label" id="progress-text">0%</span>
+                        </div>
+                        <div class="console-log-container" id="console-logs" style="margin-top: 6px;">
+                            <!-- Logi będą tu lądować -->
+                            <div class="log-line info">Witamy w Snow Sparkle Generator. Wybierz plik tła i dostosuj parametry.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Ukryty płótno canvas do konwersji SVG na PNG -->
+    <canvas id="svg-rasterizer" style="display:none"></canvas>
+
+    <!-- Szybkie Okno Informacyjne (Info Modal) -->
+    <div id="info-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>ℹ️ Informacje o Snow Sparkle Generator</h3>
+                <span id="btn-close-info" class="modal-close-btn" title="Zamknij">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="info-section">
+                    <h4>❄️ Sterowanie Interaktywne (Podgląd)</h4>
+                    <ul>
+                        <li><strong>Lewy Przycisk Myszy (LPM):</strong> Dodaje błysk w wybranym miejscu na aktywnej warstwie.</li>
+                        <li><strong>Prawy Przycisk Myszy (PPM):</strong> Usuwa najbliższy błysk w promieniu detekcji.</li>
+                        <li><strong>Kliknięcie na punkt błysku:</strong> Zaznacza go i otwiera panel szczegółowy po lewej stronie.</li>
+                    </ul>
+                </div>
+                
+                <div class="info-section" style="margin-top: 15px;">
+                    <h4>🎬 Obsługa Osi Czasu (Timeline)</h4>
+                    <ul>
+                        <li><strong>Scrubbowanie:</strong> Kliknij lub przeciągaj po linijce czasu, aby przewijać klatki wideo lub animacji.</li>
+                        <li><strong>Granice czasowe (Klipy):</strong> Dodanie błysku tworzy granicę czasową na osi czasu. Jeśli znacznik czasu znajduje się w tej granicy, kolejne błyski dodają się do niej i animują wspólnie.</li>
+                        <li><strong>Przedłużanie do przodu / tyłu:</strong> Przeciągaj lewy lub prawy uchwyt granicy, aby wydłużyć lub skrócić czas trwania błysków.</li>
+                        <li><strong>Przesuwanie:</strong> Złap środek bloku granicy, aby przesunąć go w czasie.</li>
+                        <li><strong>Automatyczne usuwanie:</strong> Usunięcie wszystkich błysków z granicy (PPM lub Wyczyść) automatycznie usuwa blok z osi czasu.</li>
+                    </ul>
+                </div>
+                
+                <div class="info-section" style="margin-top: 15px;">
+                    <h4>🚀 Tryby Działania</h4>
+                    <ul>
+                        <li><strong>Tryb Serwerowy (Online):</strong> Generuje pliki wideo na dysku za pomocą zoptymalizowanego backendu OpenCV w Pythonie.</li>
+                        <li><strong>Tryb Lokalny (Offline):</strong> Działa w 100% w przeglądarce (Client-Side). Pozwala na eksport animacji WebM bez zainstalowanego Pythona.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-close-info-ok" class="btn btn-primary w-full">Gotowe</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
