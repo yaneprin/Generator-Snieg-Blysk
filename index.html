@@ -508,38 +508,23 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <label for="sparkle-opacity" style="margin: 0; font-weight: 500;">Przeźroczystość błysku:</label>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="sparkle-opacity-input" min="0" max="1.0" step="0.05" value="1.0" class="form-control" style="width: 75px; height: 28px; padding: 2px 6px; text-align: center; font-weight: 600; font-size: 0.85rem;" title="Wpisz wartość przeźroczystości błysku od 0.0 do 1.0 (np. 1.0, 0.8, 0.5)">
-                                    <span style="font-size: 0.8rem; color: var(--color-text-muted);">(0.0 - 1.0)</span>
-                                </div>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <input type="range" id="sparkle-opacity" min="0" max="255" value="255" class="range-slider" style="flex: 1;">
-                                <span class="range-value" id="sparkle-opacity-val" style="min-width: 45px; text-align: right; font-weight: 600;">100%</span>
-                            </div>
+                            <label for="sparkle-opacity-input">Przeźroczystość błysku <span style="font-weight: normal; color: var(--color-text-muted);">(0.0 - 1.0)</span>:</label>
+                            <input type="number" id="sparkle-opacity-input" min="0" max="1.0" step="0.05" value="1.0" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz wartość przeźroczystości błysku od 0.0 do 1.0 (np. 1.0, 0.8, 0.5)">
                         </div>
-                        <div class="form-group" style="margin-top: 10px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <label for="sparkle-intensity-input" style="margin: 0; font-weight: 500;">Intensywność / jasność błysku:</label>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="sparkle-intensity-input" min="0.5" max="5.0" step="0.1" value="1.5" class="form-control" style="width: 75px; height: 28px; padding: 2px 6px; text-align: center; font-weight: 600; font-size: 0.85rem;" title="Wpisz mnożnik intensywności błysku (np. 1.0, 1.5, 2.0, 3.0)">
-                                    <span style="font-size: 0.8rem; color: var(--color-text-muted);">(0.5 - 5.0x)</span>
-                                </div>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <input type="range" id="sparkle-intensity" min="0.5" max="5.0" step="0.1" value="1.5" class="range-slider" style="flex: 1;">
-                                <span class="range-value" id="sparkle-intensity-val" style="min-width: 45px; text-align: right; font-weight: 600;">1.5x</span>
-                            </div>
+
+                        <div class="form-group">
+                            <label for="sparkle-intensity-input">Intensywność / jasność błysku <span style="font-weight: normal; color: var(--color-text-muted);">(0.5 - 5.0)</span>:</label>
+                            <input type="number" id="sparkle-intensity-input" min="0.5" max="5.0" step="0.1" value="1.5" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz mnożnik intensywności błysku od 0.5 do 5.0 (np. 1.0, 1.5, 2.0, 3.0)">
                         </div>
-                        <div class="form-group checkbox-group">
-                            <input type="checkbox" id="sparkle-use-blur" checked>
-                            <label for="sparkle-use-blur">Rozmycie krawędzi (Gaussian Blur)</label>
+
+                        <div class="form-group">
+                            <label for="sparkle-blur-input">Rozmycie gaussowskie (Gaussian Blur w px):</label>
+                            <input type="number" id="sparkle-blur-input" min="0" max="50" step="1" value="0" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz promień rozmycia gaussowskiego dla błysku w pikselach (0 = brak rozmycia, np. 1, 2, 5 px)">
                         </div>
-                        <div class="form-group checkbox-group">
-                            <input type="checkbox" id="sparkle-size-smoothing" checked>
-                            <label for="sparkle-size-smoothing">Wygładzanie rozmiaru (Size smoothing)</label>
+
+                        <div class="form-group">
+                            <label for="sparkle-size-smoothing-input">Wygładzanie rozmiaru (Size smoothing) <span style="font-weight: normal; color: var(--color-text-muted);">(0.0 - 1.0)</span>:</label>
+                            <input type="number" id="sparkle-size-smoothing-input" min="0" max="1.0" step="0.05" value="0.5" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz współczynnik wygładzania rozmiaru od 0.0 (liniowy) do 1.0 (pełne płynne wygładzenie cosinusowe)">
                         </div>
                         <div class="form-group">
                             <label for="sparkle-blend-mode">Tryb mieszania błysków (Blend Mode):</label>

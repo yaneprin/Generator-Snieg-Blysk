@@ -121,7 +121,9 @@ const sparkleSizeMaxInput = document.getElementById('sparkle-size-max');
 const sparkleOpacitySlider = document.getElementById('sparkle-opacity');
 const sparkleOpacityVal = document.getElementById('sparkle-opacity-val');
 const sparkleOpacityInput = document.getElementById('sparkle-opacity-input');
+const sparkleBlurInput = document.getElementById('sparkle-blur-input');
 const sparkleUseBlurCheckbox = document.getElementById('sparkle-use-blur');
+const sparkleSizeSmoothingInput = document.getElementById('sparkle-size-smoothing-input');
 const sparkleSizeSmoothCheckbox = document.getElementById('sparkle-size-smoothing');
 const sparkleBlendModeSelect = document.getElementById('sparkle-blend-mode');
 const brushSizeInput = document.getElementById('brush-size-input');
@@ -598,14 +600,6 @@ function setupSliders() {
     bindSlider(snowParallaxSlider, snowParallaxVal);
     bindSlider(sparkleFrequencySlider, sparkleFrequencyVal);
     bindSlider(sparkleJitterSlider, sparkleJitterVal);
-    if (sparkleOpacitySlider && sparkleOpacityVal) {
-        sparkleOpacitySlider.addEventListener('input', () => {
-            const v = parseInt(sparkleOpacitySlider.value) || 0;
-            const norm = v / 255.0;
-            if (sparkleOpacityInput) sparkleOpacityInput.value = (Math.round(norm * 100) / 100).toFixed(2);
-            sparkleOpacityVal.textContent = `${Math.round(norm * 100)}%`;
-        });
-    }
     if (sparkleOpacityInput) {
         const syncFromInput = () => {
             let val = parseFloat(sparkleOpacityInput.value);
@@ -619,15 +613,16 @@ function setupSliders() {
         sparkleOpacityInput.addEventListener('input', syncFromInput);
         sparkleOpacityInput.addEventListener('change', syncFromInput);
     }
-
-    if (sparkleIntensitySlider && sparkleIntensityVal) {
-        sparkleIntensitySlider.addEventListener('input', () => {
-            const val = parseFloat(sparkleIntensitySlider.value) || 1.5;
-            if (sparkleIntensityInput) sparkleIntensityInput.value = val.toFixed(1);
-            sparkleIntensityVal.textContent = `${val.toFixed(1)}x`;
+    if (sparkleOpacitySlider && sparkleOpacityVal) {
+        sparkleOpacitySlider.addEventListener('input', () => {
+            const v = parseInt(sparkleOpacitySlider.value) || 0;
+            const norm = v / 255.0;
+            if (sparkleOpacityInput) sparkleOpacityInput.value = (Math.round(norm * 100) / 100).toFixed(2);
+            sparkleOpacityVal.textContent = `${Math.round(norm * 100)}%`;
             drawSparkles();
         });
     }
+
     if (sparkleIntensityInput) {
         const syncIntensityInput = () => {
             let val = parseFloat(sparkleIntensityInput.value);
@@ -639,6 +634,24 @@ function setupSliders() {
         };
         sparkleIntensityInput.addEventListener('input', syncIntensityInput);
         sparkleIntensityInput.addEventListener('change', syncIntensityInput);
+    }
+    if (sparkleIntensitySlider && sparkleIntensityVal) {
+        sparkleIntensitySlider.addEventListener('input', () => {
+            const val = parseFloat(sparkleIntensitySlider.value) || 1.5;
+            if (sparkleIntensityInput) sparkleIntensityInput.value = val.toFixed(1);
+            sparkleIntensityVal.textContent = `${val.toFixed(1)}x`;
+            drawSparkles();
+        });
+    }
+
+    if (sparkleBlurInput) {
+        sparkleBlurInput.addEventListener('input', () => drawSparkles());
+        sparkleBlurInput.addEventListener('change', () => drawSparkles());
+    }
+
+    if (sparkleSizeSmoothingInput) {
+        sparkleSizeSmoothingInput.addEventListener('input', () => drawSparkles());
+        sparkleSizeSmoothingInput.addEventListener('change', () => drawSparkles());
     }
     
     // Bind new 3D DOF sliders
@@ -1166,6 +1179,25 @@ function getSparkleBloomBlur() {
     return sparkleKeySettings.bloomBlur || 12;
 }
 
+function getSparkleGaussianBlurRadius() {
+    if (typeof sparkleBlurInput !== 'undefined' && sparkleBlurInput && sparkleBlurInput.value !== '') {
+        const v = parseFloat(sparkleBlurInput.value);
+        return !isNaN(v) ? Math.max(0, v) : 0;
+    }
+    return 0;
+}
+
+function getSparkleSizeSmoothing() {
+    if (typeof sparkleSizeSmoothingInput !== 'undefined' && sparkleSizeSmoothingInput && sparkleSizeSmoothingInput.value !== '') {
+        const v = parseFloat(sparkleSizeSmoothingInput.value);
+        return !isNaN(v) ? Math.max(0.0, Math.min(1.0, v)) : 0.5;
+    }
+    if (typeof sparkleSizeSmoothCheckbox !== 'undefined' && sparkleSizeSmoothCheckbox) {
+        return sparkleSizeSmoothCheckbox.checked ? 0.5 : 0.0;
+    }
+    return 0.5;
+}
+
 // HELPER: CALCULATE ACCURATE BLINKING / PULSE FACTOR (0.0 -> 1.0 -> 0.0)
 function getSparklePulseFactor(curFrame, s) {
     const enableBlinking = (typeof sparkleEnableBlinkingCheckbox !== 'undefined' && sparkleEnableBlinkingCheckbox)
@@ -1209,12 +1241,11 @@ function getSparklePulseFactor(curFrame, s) {
         rawProgress = 0.0;
     }
 
-    const useSmooth = (typeof sparkleSizeSmoothCheckbox !== 'undefined' && sparkleSizeSmoothCheckbox)
-        ? sparkleSizeSmoothCheckbox.checked : true;
-
+    const smoothing = getSparkleSizeSmoothing();
     let factor = rawProgress;
-    if (useSmooth && rawProgress > 0.0 && rawProgress < 1.0) {
-        factor = 0.5 - 0.5 * Math.cos(rawProgress * Math.PI);
+    if (smoothing > 0.0 && rawProgress > 0.0 && rawProgress < 1.0) {
+        const smoothProgress = 0.5 - 0.5 * Math.cos(rawProgress * Math.PI);
+        factor = (1.0 - smoothing) * rawProgress + smoothing * smoothProgress;
     }
 
     const jitterAmount = (typeof sparkleJitterSlider !== 'undefined' && sparkleJitterSlider)
@@ -1485,7 +1516,12 @@ function drawSparkles() {
         spriteImg.style.pointerEvents = 'none';
 
         const intensity = getSparkleConfigIntensity();
+        const coreBlur = getSparkleGaussianBlurRadius();
         let coreFilter = '';
+        if (coreBlur > 0) {
+            const blurPx = Math.round(coreBlur * (state.sourceWidth / 1200));
+            if (blurPx > 0) coreFilter += `blur(${blurPx}px) `;
+        }
         if (intensity !== 1.0) {
             coreFilter += `brightness(${intensity.toFixed(2)}) contrast(1.15) `;
         }
@@ -2431,10 +2467,11 @@ function getSettingsObject() {
         enable_smooth_animation: sparkleSmoothAnimCheckbox.checked,
         size_min: (sparkleSizeMinInput && sparkleSizeMinInput.value !== '') ? Math.max(0, parseInt(sparkleSizeMinInput.value, 10)) : 0,
         size_max: (sparkleSizeMaxInput && sparkleSizeMaxInput.value !== '') ? Math.max(1, parseInt(sparkleSizeMaxInput.value, 10)) : 24,
-        sparkle_opacity: (sparkleOpacityInput ? parseFloat(sparkleOpacityInput.value) : ((parseInt(sparkleOpacitySlider.value) || 255) / 255.0)),
-        use_gaussian_blur: sparkleUseBlurCheckbox.checked,
-        size_smoothing: sparkleSizeSmoothCheckbox.checked,
-        sparkle_blend_mode: sparkleBlendModeSelect.value,
+        sparkle_opacity: getSparkleConfigOpacity(),
+        use_gaussian_blur: getSparkleGaussianBlurRadius(),
+        sparkle_blur: getSparkleGaussianBlurRadius(),
+        size_smoothing: getSparkleSizeSmoothing(),
+        sparkle_blend_mode: sparkleBlendModeSelect ? sparkleBlendModeSelect.value : 'normal',
         sparkle_intensity: getSparkleConfigIntensity(),
         bloom_blur: getSparkleBloomBlur(),
         bloom_enabled: sparkleKeySettings.bloomEnabled,
@@ -2558,8 +2595,16 @@ function applySettingsObject(settings) {
         if (sparkleOpacityInput) sparkleOpacityInput.value = opVal.toFixed(2);
         if (sparkleOpacityVal) sparkleOpacityVal.textContent = `${Math.round(opVal * 100)}%`;
     }
-    if (settings.use_gaussian_blur !== undefined) sparkleUseBlurCheckbox.checked = settings.use_gaussian_blur;
-    if (settings.size_smoothing !== undefined) sparkleSizeSmoothCheckbox.checked = settings.size_smoothing;
+    if (settings.use_gaussian_blur !== undefined || settings.sparkle_blur !== undefined) {
+        const bVal = settings.sparkle_blur !== undefined ? parseFloat(settings.sparkle_blur) : (typeof settings.use_gaussian_blur === 'number' ? settings.use_gaussian_blur : (settings.use_gaussian_blur ? 2 : 0));
+        if (sparkleBlurInput) sparkleBlurInput.value = bVal;
+        if (sparkleUseBlurCheckbox) sparkleUseBlurCheckbox.checked = bVal > 0;
+    }
+    if (settings.size_smoothing !== undefined) {
+        const sVal = typeof settings.size_smoothing === 'number' ? settings.size_smoothing : (settings.size_smoothing ? 0.5 : 0.0);
+        if (sparkleSizeSmoothingInput) sparkleSizeSmoothingInput.value = sVal;
+        if (sparkleSizeSmoothCheckbox) sparkleSizeSmoothCheckbox.checked = sVal > 0;
+    }
     if (settings.sparkle_blend_mode) sparkleBlendModeSelect.value = settings.sparkle_blend_mode;
     if (settings.sparkle_intensity !== undefined) {
         const intVal = parseFloat(settings.sparkle_intensity) || 1.5;
@@ -3380,8 +3425,17 @@ async function generateClientSide(type) {
                         bCtx.globalCompositeOperation = currentSparkleBlend;
                         bCtx.globalAlpha = opacityMax;
                         const spkIntensityAnim = getSparkleConfigIntensity();
-                        if (spkIntensityAnim !== 1.0 && typeof bCtx.filter !== 'undefined') {
-                            bCtx.filter = `brightness(${spkIntensityAnim.toFixed(2)}) contrast(1.15)`;
+                        const coreBlurAnim = getSparkleGaussianBlurRadius();
+                        let animFilterParts = [];
+                        if (coreBlurAnim > 0) {
+                            const blurPx = Math.round(coreBlurAnim * (drawParams.dstW / 1200));
+                            if (blurPx > 0) animFilterParts.push(`blur(${blurPx}px)`);
+                        }
+                        if (spkIntensityAnim !== 1.0) {
+                            animFilterParts.push(`brightness(${spkIntensityAnim.toFixed(2)}) contrast(1.15)`);
+                        }
+                        if (animFilterParts.length > 0 && typeof bCtx.filter !== 'undefined') {
+                            bCtx.filter = animFilterParts.join(' ');
                         }
                         drawSingle(bCtx);
                         if (spkIntensityAnim > 1.2) {
@@ -3454,8 +3508,17 @@ async function generateClientSide(type) {
                         bCtx.globalCompositeOperation = currentSparkleBlend;
                         bCtx.globalAlpha = effectiveAlpha;
                         const spkIntensityStatic = getSparkleConfigIntensity();
-                        if (spkIntensityStatic !== 1.0 && typeof bCtx.filter !== 'undefined') {
-                            bCtx.filter = `brightness(${spkIntensityStatic.toFixed(2)}) contrast(1.15)`;
+                        const coreBlurStatic = getSparkleGaussianBlurRadius();
+                        let staticFilterParts = [];
+                        if (coreBlurStatic > 0) {
+                            const blurPx = Math.round(coreBlurStatic * (drawParams.dstW / 1200));
+                            if (blurPx > 0) staticFilterParts.push(`blur(${blurPx}px)`);
+                        }
+                        if (spkIntensityStatic !== 1.0) {
+                            staticFilterParts.push(`brightness(${spkIntensityStatic.toFixed(2)}) contrast(1.15)`);
+                        }
+                        if (staticFilterParts.length > 0 && typeof bCtx.filter !== 'undefined') {
+                            bCtx.filter = staticFilterParts.join(' ');
                         }
                         bCtx.drawImage(sparkleImg, dx, dy, dw, dh);
                         if (spkIntensityStatic > 1.2) {
