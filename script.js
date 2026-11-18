@@ -146,10 +146,14 @@ const sparkleBloomEnableCheckbox = document.getElementById('sparkle-bloom-enable
 const sparkleBloomBlendModeSelect = document.getElementById('sparkle-bloom-blend-mode');
 const sparkleBloomStrengthInput = document.getElementById('sparkle-bloom-strength');
 const sparkleBloomRadiusInput = document.getElementById('sparkle-bloom-radius');
+const sparkleBloomBlurInput = document.getElementById('sparkle-bloom-blur');
 const sparkleBloomOpacityInput = document.getElementById('sparkle-bloom-opacity');
 const sparkleBloomColorInput = document.getElementById('sparkle-bloom-color');
 const sparkleBloomColorVal = document.getElementById('sparkle-bloom-color-val');
 const sparkleDetailTypeSelect = document.getElementById('sparkle-detail-type');
+const sparkleIntensitySlider = document.getElementById('sparkle-intensity');
+const sparkleIntensityVal = document.getElementById('sparkle-intensity-val');
+const sparkleIntensityInput = document.getElementById('sparkle-intensity-input');
 
 
 // Sparkles Blinking & Brush Size Mult inputs
@@ -272,8 +276,9 @@ let sparkleKeySettings = {
     smoothness: 15,
     bloomEnabled: true,
     bloomBlendMode: 'screen',
-    bloomStrength: 1.2,
-    bloomRadius: 15,
+    bloomStrength: 1.5,
+    bloomRadius: 20,
+    bloomBlur: 12,
     bloomOpacity: 1.0,
     bloomColor: '#ffffff'
 };
@@ -614,6 +619,27 @@ function setupSliders() {
         sparkleOpacityInput.addEventListener('input', syncFromInput);
         sparkleOpacityInput.addEventListener('change', syncFromInput);
     }
+
+    if (sparkleIntensitySlider && sparkleIntensityVal) {
+        sparkleIntensitySlider.addEventListener('input', () => {
+            const val = parseFloat(sparkleIntensitySlider.value) || 1.5;
+            if (sparkleIntensityInput) sparkleIntensityInput.value = val.toFixed(1);
+            sparkleIntensityVal.textContent = `${val.toFixed(1)}x`;
+            drawSparkles();
+        });
+    }
+    if (sparkleIntensityInput) {
+        const syncIntensityInput = () => {
+            let val = parseFloat(sparkleIntensityInput.value);
+            if (isNaN(val)) return;
+            val = Math.max(0.1, Math.min(10.0, val));
+            if (sparkleIntensitySlider) sparkleIntensitySlider.value = val;
+            if (sparkleIntensityVal) sparkleIntensityVal.textContent = `${val.toFixed(1)}x`;
+            drawSparkles();
+        };
+        sparkleIntensityInput.addEventListener('input', syncIntensityInput);
+        sparkleIntensityInput.addEventListener('change', syncIntensityInput);
+    }
     
     // Bind new 3D DOF sliders
     bindSlider(snowDofFocusSlider, snowDofFocusVal);
@@ -859,13 +885,18 @@ function setupCanvasInteractions() {
                 logMessage(`Dodano błysk do istniejącej granicy: klatki ${targetClip.start_frame} - ${targetClip.end_frame}`, 'info');
             }
 
+            const gapMin = (typeof sparkleGapMinInput !== 'undefined' && sparkleGapMinInput) ? Math.max(0, parseInt(sparkleGapMinInput.value, 10) || 15) : 15;
+            const gapMax = (typeof sparkleGapMaxInput !== 'undefined' && sparkleGapMaxInput) ? Math.max(gapMin, parseInt(sparkleGapMaxInput.value, 10) || 45) : 45;
+            const gapDur = Math.floor(Math.random() * (gapMax - gapMin + 1)) + gapMin;
+
             state.sparkles.push({
                 x: realX,
                 y: realY,
                 size_category: state.selectedSizeCategory,
                 size_multiplier: state.selectedSizeMultiplier || 1.0,
                 layer: 'sparkles',
-                frame_offset: Math.floor(Math.random() * 40),
+                frame_offset: Math.floor(Math.random() * 120),
+                gap_duration: gapDur,
                 start_frame: targetClip.start_frame,
                 end_frame: targetClip.end_frame,
                 timing_mode: 'manual',
@@ -1088,7 +1119,115 @@ async function fixWebmDuration(blob, durationMs) {
     }
 }
 
-// HELPER: CALCULATE SPARKLE SIZE FOR PREVIEW AND EXPORT
+// HELPER: GET CURRENT CONFIG VALUES FOR SPARKLE SIZE & OPACITY
+function getSparkleConfigMin() {
+    if (typeof sparkleSizeMinInput !== 'undefined' && sparkleSizeMinInput && sparkleSizeMinInput.value !== '') {
+        const v = parseInt(sparkleSizeMinInput.value, 10);
+        return !isNaN(v) ? Math.max(0, v) : 0;
+    }
+    return 0;
+}
+
+function getSparkleConfigMax() {
+    if (typeof sparkleSizeMaxInput !== 'undefined' && sparkleSizeMaxInput && sparkleSizeMaxInput.value !== '') {
+        const v = parseInt(sparkleSizeMaxInput.value, 10);
+        return !isNaN(v) ? Math.max(1, v) : 24;
+    }
+    return 24;
+}
+
+function getSparkleConfigOpacity() {
+    if (typeof sparkleOpacityInput !== 'undefined' && sparkleOpacityInput && sparkleOpacityInput.value !== '') {
+        return Math.max(0.0, Math.min(1.0, parseFloat(sparkleOpacityInput.value) || 0));
+    }
+    if (typeof sparkleOpacitySlider !== 'undefined' && sparkleOpacitySlider) {
+        return Math.max(0.0, Math.min(1.0, (parseInt(sparkleOpacitySlider.value, 10) || 255) / 255.0));
+    }
+    return 1.0;
+}
+
+function getSparkleConfigIntensity() {
+    if (typeof sparkleIntensityInput !== 'undefined' && sparkleIntensityInput && sparkleIntensityInput.value !== '') {
+        const v = parseFloat(sparkleIntensityInput.value);
+        return !isNaN(v) ? Math.max(0.1, Math.min(10.0, v)) : 1.5;
+    }
+    if (typeof sparkleIntensitySlider !== 'undefined' && sparkleIntensitySlider && sparkleIntensitySlider.value !== '') {
+        const v = parseFloat(sparkleIntensitySlider.value);
+        return !isNaN(v) ? Math.max(0.1, Math.min(10.0, v)) : 1.5;
+    }
+    return 1.5;
+}
+
+function getSparkleBloomBlur() {
+    if (typeof sparkleBloomBlurInput !== 'undefined' && sparkleBloomBlurInput && sparkleBloomBlurInput.value !== '') {
+        const v = parseFloat(sparkleBloomBlurInput.value);
+        return !isNaN(v) ? Math.max(0, v) : (sparkleKeySettings.bloomBlur || 12);
+    }
+    return sparkleKeySettings.bloomBlur || 12;
+}
+
+// HELPER: CALCULATE ACCURATE BLINKING / PULSE FACTOR (0.0 -> 1.0 -> 0.0)
+function getSparklePulseFactor(curFrame, s) {
+    const enableBlinking = (typeof sparkleEnableBlinkingCheckbox !== 'undefined' && sparkleEnableBlinkingCheckbox)
+        ? sparkleEnableBlinkingCheckbox.checked
+        : true;
+
+    if (!enableBlinking) {
+        return 1.0;
+    }
+
+    const fadeIn = (typeof sparkleFadeInInput !== 'undefined' && sparkleFadeInInput)
+        ? Math.max(1, parseInt(sparkleFadeInInput.value, 10) || 10) : 10;
+    const hold = (typeof sparkleHoldInput !== 'undefined' && sparkleHoldInput)
+        ? Math.max(0, parseInt(sparkleHoldInput.value, 10) || 5) : 5;
+    const fadeOut = (typeof sparkleFadeOutInput !== 'undefined' && sparkleFadeOutInput)
+        ? Math.max(1, parseInt(sparkleFadeOutInput.value, 10) || 10) : 10;
+    const blinkingSpeed = (typeof sparkleBlinkingSpeedSlider !== 'undefined' && sparkleBlinkingSpeedSlider)
+        ? (parseFloat(sparkleBlinkingSpeedSlider.value) || 1.0) : 1.0;
+
+    let speedAdjustedFadeIn = Math.max(1, Math.round(fadeIn / blinkingSpeed));
+    let speedAdjustedHold = Math.max(0, Math.round(hold / blinkingSpeed));
+    let speedAdjustedFadeOut = Math.max(1, Math.round(fadeOut / blinkingSpeed));
+
+    const gap = (s && s.gap_duration !== undefined) ? s.gap_duration : 25;
+    let speedAdjustedGap = Math.max(0, Math.round(gap / blinkingSpeed));
+
+    const totalCycle = speedAdjustedFadeIn + speedAdjustedHold + speedAdjustedFadeOut + speedAdjustedGap;
+    if (totalCycle <= 0) return 1.0;
+
+    const offset = (s && s.frame_offset !== undefined) ? s.frame_offset : 0;
+    const cycleFrame = (Math.max(0, curFrame + offset)) % totalCycle;
+
+    let rawProgress = 0.0;
+    if (cycleFrame < speedAdjustedFadeIn) {
+        rawProgress = cycleFrame / speedAdjustedFadeIn;
+    } else if (cycleFrame < speedAdjustedFadeIn + speedAdjustedHold) {
+        rawProgress = 1.0;
+    } else if (cycleFrame < speedAdjustedFadeIn + speedAdjustedHold + speedAdjustedFadeOut) {
+        rawProgress = 1.0 - (cycleFrame - (speedAdjustedFadeIn + speedAdjustedHold)) / speedAdjustedFadeOut;
+    } else {
+        rawProgress = 0.0;
+    }
+
+    const useSmooth = (typeof sparkleSizeSmoothCheckbox !== 'undefined' && sparkleSizeSmoothCheckbox)
+        ? sparkleSizeSmoothCheckbox.checked : true;
+
+    let factor = rawProgress;
+    if (useSmooth && rawProgress > 0.0 && rawProgress < 1.0) {
+        factor = 0.5 - 0.5 * Math.cos(rawProgress * Math.PI);
+    }
+
+    const jitterAmount = (typeof sparkleJitterSlider !== 'undefined' && sparkleJitterSlider)
+        ? (parseFloat(sparkleJitterSlider.value) || 0) : 0;
+    if (jitterAmount > 0.001 && factor > 0.2) {
+        const jitterVal = Math.sin((offset + curFrame) * 0.35) * (jitterAmount * 0.15);
+        factor = Math.max(0.0, Math.min(1.0, factor + jitterVal));
+    }
+
+    return Math.max(0.0, Math.min(1.0, factor));
+}
+
+// HELPER: CALCULATE MAXIMUM SPARKLE SIZE FOR PREVIEW AND EXPORT
 function getSparkleSize(sparkle, referenceWidth) {
     const spkType = sparkle.sparkle_type || state.selectedSparkleType || '1';
     const preset = SPARKLE_PRESETS[spkType] || SPARKLE_PRESETS['1'];
@@ -1100,11 +1239,10 @@ function getSparkleSize(sparkle, referenceWidth) {
         // Dynamiczna bazowa wielkość w odniesieniu do szerokości (ok. 6.5%)
         baseSize = refW * 0.065;
     } else {
-        const sizeMin = (typeof sparkleSizeMinInput !== 'undefined' && sparkleSizeMinInput) ? (parseInt(sparkleSizeMinInput.value) || 8) : 8;
-        const sizeMax = (typeof sparkleSizeMaxInput !== 'undefined' && sparkleSizeMaxInput) ? (parseInt(sparkleSizeMaxInput.value) || 24) : 24;
-        baseSize = ((sizeMin + sizeMax) / 2) * (refW / 600);
+        const sizeMax = getSparkleConfigMax();
+        baseSize = sizeMax * (refW / 600);
     }
-    return Math.max(4, Math.round(baseSize * mult));
+    return Math.max(0, Math.round(baseSize * mult));
 }
 
 // LIVE PREVIEW ANIMATION LOOP
@@ -1124,28 +1262,87 @@ function startLivePreviewLoop() {
 
         if (!mediaViewport || mediaViewport.style.display === 'none' || state.sparkles.length === 0) return;
 
-        const animatedElements = canvasOverlay.querySelectorAll('.sparkle-animated-item');
-        if (!animatedElements || animatedElements.length === 0) return;
-
         previewGlobalFrame++;
         const speed = state.sparkleAnimSpeed !== undefined ? state.sparkleAnimSpeed : 1.0;
-        const currentBaseFrame = state.isVideo ? Math.round(previewVideo.currentTime * state.fps) : previewGlobalFrame;
+        const isVideoPlaying = (state.isVideo && previewVideo && !previewVideo.paused);
+        const currentVideoFrame = (state.isVideo && previewVideo) ? Math.round(previewVideo.currentTime * state.fps) : 0;
+        const animTickFrame = isVideoPlaying ? currentVideoFrame : previewGlobalFrame;
 
-        animatedElements.forEach(img => {
-            const spkType = img.getAttribute('data-type');
-            const offset = parseInt(img.getAttribute('data-offset') || '0', 10);
-            const preset = SPARKLE_PRESETS[spkType];
-            if (!preset || !preset.frameCount) return;
-
-            const count = preset.frameCount;
-            const animFrame = Math.floor(Math.max(0, (currentBaseFrame + offset) * speed)) % count;
-            const url = getSparkleFrameDataUrl(spkType, animFrame);
-            if (url && url.startsWith('data:image')) {
-                if (img.getAttribute('href') !== url) {
-                    img.setAttribute('href', url);
+        // 1. Animacja spritesheetów (Presety 2, 3, 4)
+        const animatedElements = canvasOverlay.querySelectorAll('.sparkle-animated-item');
+        if (animatedElements && animatedElements.length > 0) {
+            animatedElements.forEach(img => {
+                const start = parseInt(img.getAttribute('data-start') || '0', 10);
+                const end = parseInt(img.getAttribute('data-end') || '999999', 10);
+                if (state.isVideo && (currentVideoFrame < start || currentVideoFrame > end)) {
+                    img.setAttribute('opacity', '0');
+                    return;
                 }
-            }
-        });
+
+                const spkType = img.getAttribute('data-type');
+                const offset = parseInt(img.getAttribute('data-offset') || '0', 10);
+                const preset = SPARKLE_PRESETS[spkType];
+                if (!preset || !preset.frameCount) return;
+
+                const count = preset.frameCount;
+                const animFrame = Math.floor(Math.max(0, (animTickFrame + offset) * speed)) % count;
+                const url = getSparkleFrameDataUrl(spkType, animFrame);
+                if (url && url.startsWith('data:image')) {
+                    if (img.getAttribute('href') !== url) {
+                        img.setAttribute('href', url);
+                    }
+                }
+            });
+        }
+
+        // 2. Animacja Preset 1 (Normalny statyczny błysk - pulsowanie rozmiaru od min do max i z powrotem)
+        const staticPulseElements = canvasOverlay.querySelectorAll('.sparkle-static-pulse');
+        if (staticPulseElements && staticPulseElements.length > 0) {
+            const sizeMin = getSparkleConfigMin();
+            const sizeMax = getSparkleConfigMax();
+            const refW = state.sourceWidth || 1920;
+            const globalOpacity = getSparkleConfigOpacity();
+
+            staticPulseElements.forEach(el => {
+                const start = parseInt(el.getAttribute('data-start') || '0', 10);
+                const end = parseInt(el.getAttribute('data-end') || '999999', 10);
+
+                if (state.isVideo && (currentVideoFrame < start || currentVideoFrame > end)) {
+                    el.setAttribute('opacity', '0');
+                    return;
+                }
+
+                const offset = parseInt(el.getAttribute('data-offset') || '0', 10);
+                const gap = parseInt(el.getAttribute('data-gap') || '25', 10);
+                const mult = parseFloat(el.getAttribute('data-mult') || '1.0');
+                const cx = parseFloat(el.getAttribute('data-cx') || '0');
+                const cy = parseFloat(el.getAttribute('data-cy') || '0');
+                const isBloom = el.classList.contains('sparkle-bloom-layer');
+
+                const factor = getSparklePulseFactor(animTickFrame, { frame_offset: offset, gap_duration: gap });
+
+                const minPx = sizeMin * mult * (refW / 600);
+                const maxPx = sizeMax * mult * (refW / 600);
+                const curSize = minPx + (maxPx - minPx) * factor;
+
+                if (curSize <= 0.5 || factor <= 0.01) {
+                    el.setAttribute('opacity', '0');
+                    el.setAttribute('width', '0');
+                    el.setAttribute('height', '0');
+                } else {
+                    el.setAttribute('x', (cx - curSize / 2).toFixed(1));
+                    el.setAttribute('y', (cy - curSize / 2).toFixed(1));
+                    el.setAttribute('width', curSize.toFixed(1));
+                    el.setAttribute('height', curSize.toFixed(1));
+
+                    const bloomOpacityMult = isBloom
+                        ? Math.min(1.0, (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * Math.min(2.0, (sparkleKeySettings.bloomStrength || 1.2)))
+                        : 1.0;
+                    const finalOpacity = factor * globalOpacity * bloomOpacityMult;
+                    el.setAttribute('opacity', finalOpacity.toFixed(3));
+                }
+            });
+        }
     }
 
     livePreviewRafId = requestAnimationFrame(tick);
@@ -1235,12 +1432,16 @@ function drawSparkles() {
         // 1. Bloom Layer (z osobnym trybem mieszania, przeźroczystością, siłą i promieniem)
         if (hasBloom) {
             const bloomImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-            bloomImg.setAttribute('class', isAnim ? 'sparkle-animated-item sparkle-bloom-layer' : 'sparkle-bloom-layer');
-            if (isAnim) {
-                bloomImg.setAttribute('data-idx', idx.toString());
-                bloomImg.setAttribute('data-type', spkType);
-                bloomImg.setAttribute('data-offset', (sparkle.frame_offset || 0).toString());
-            }
+            bloomImg.setAttribute('class', isAnim ? 'sparkle-animated-item sparkle-bloom-layer' : 'sparkle-bloom-layer sparkle-static-pulse');
+            bloomImg.setAttribute('data-idx', idx.toString());
+            bloomImg.setAttribute('data-type', spkType);
+            bloomImg.setAttribute('data-offset', (sparkle.frame_offset || 0).toString());
+            bloomImg.setAttribute('data-gap', (sparkle.gap_duration !== undefined ? sparkle.gap_duration : 25).toString());
+            bloomImg.setAttribute('data-mult', (sparkle.size_multiplier !== undefined ? sparkle.size_multiplier : 1.0).toString());
+            bloomImg.setAttribute('data-cx', svgX.toString());
+            bloomImg.setAttribute('data-cy', svgY.toString());
+            bloomImg.setAttribute('data-start', start.toString());
+            bloomImg.setAttribute('data-end', end.toString());
             bloomImg.setAttribute('href', activeUrl);
             bloomImg.setAttribute('x', (svgX - sparkleSize / 2).toString());
             bloomImg.setAttribute('y', (svgY - sparkleSize / 2).toString());
@@ -1250,19 +1451,30 @@ function drawSparkles() {
             bloomImg.style.mixBlendMode = bloomCssBlend;
             bloomImg.style.pointerEvents = 'none';
 
-            const blurPx = Math.round(bloomRadius * (state.sourceWidth / 1200) * (bloomStrength / 1.2));
-            bloomImg.style.filter = `drop-shadow(0 0 ${blurPx}px ${bloomColor}) drop-shadow(0 0 ${Math.round(blurPx * 0.5)}px ${bloomColor})`;
+            const blurScale = state.sourceWidth / 1200;
+            const blurPx = Math.round(bloomRadius * blurScale * (bloomStrength / 1.2));
+            const rozmazaniePx = Math.max(0, Math.round(getSparkleBloomBlur() * blurScale));
+            let bloomFilterStr = '';
+            if (rozmazaniePx > 0) {
+                bloomFilterStr += `blur(${rozmazaniePx}px) `;
+            }
+            bloomFilterStr += `drop-shadow(0 0 ${blurPx}px ${bloomColor}) drop-shadow(0 0 ${Math.max(1, Math.round(blurPx * 0.5))}px ${bloomColor})`;
+            bloomImg.style.filter = bloomFilterStr.trim();
             g.appendChild(bloomImg);
         }
 
         // 2. Core Sparkle Image
         const spriteImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-        if (isAnim) {
-            spriteImg.setAttribute('class', 'sparkle-animated-item');
-            spriteImg.setAttribute('data-idx', idx.toString());
-            spriteImg.setAttribute('data-type', spkType);
-            spriteImg.setAttribute('data-offset', (sparkle.frame_offset || 0).toString());
-        }
+        spriteImg.setAttribute('class', isAnim ? 'sparkle-animated-item' : 'sparkle-core-layer sparkle-static-pulse');
+        spriteImg.setAttribute('data-idx', idx.toString());
+        spriteImg.setAttribute('data-type', spkType);
+        spriteImg.setAttribute('data-offset', (sparkle.frame_offset || 0).toString());
+        spriteImg.setAttribute('data-gap', (sparkle.gap_duration !== undefined ? sparkle.gap_duration : 25).toString());
+        spriteImg.setAttribute('data-mult', (sparkle.size_multiplier !== undefined ? sparkle.size_multiplier : 1.0).toString());
+        spriteImg.setAttribute('data-cx', svgX.toString());
+        spriteImg.setAttribute('data-cy', svgY.toString());
+        spriteImg.setAttribute('data-start', start.toString());
+        spriteImg.setAttribute('data-end', end.toString());
         spriteImg.setAttribute('href', activeUrl);
         spriteImg.setAttribute('x', (svgX - sparkleSize / 2).toString());
         spriteImg.setAttribute('y', (svgY - sparkleSize / 2).toString());
@@ -1271,6 +1483,20 @@ function drawSparkles() {
         spriteImg.setAttribute('opacity', itemOpacity.toString());
         spriteImg.style.mixBlendMode = blendModeCss;
         spriteImg.style.pointerEvents = 'none';
+
+        const intensity = getSparkleConfigIntensity();
+        let coreFilter = '';
+        if (intensity !== 1.0) {
+            coreFilter += `brightness(${intensity.toFixed(2)}) contrast(1.15) `;
+        }
+        if (intensity > 1.2) {
+            const coreGlowPx = Math.max(1, Math.round(3 * (state.sourceWidth / 1200) * (intensity - 1.0)));
+            coreFilter += `drop-shadow(0 0 ${coreGlowPx}px rgba(255, 255, 255, 0.85))`;
+        }
+        if (coreFilter.trim()) {
+            spriteImg.style.filter = coreFilter.trim();
+        }
+
         g.appendChild(spriteImg);
 
         // Subtelny punkt środka (anchor dot)
@@ -1697,6 +1923,16 @@ function setupSparklePresetAndEffects() {
             };
             sparkleBloomOpacityInput.addEventListener('input', onOpacity);
             sparkleBloomOpacityInput.addEventListener('change', onOpacity);
+        }
+        if (sparkleBloomBlurInput) {
+            const onBlur = () => {
+                let bVal = parseInt(sparkleBloomBlurInput.value, 10);
+                if (isNaN(bVal) || bVal < 0) bVal = 0;
+                sparkleKeySettings.bloomBlur = bVal;
+                drawSparkles();
+            };
+            sparkleBloomBlurInput.addEventListener('input', onBlur);
+            sparkleBloomBlurInput.addEventListener('change', onBlur);
         }
         if (sparkleBloomColorInput) {
             sparkleBloomColorInput.addEventListener('input', () => {
@@ -2193,12 +2429,20 @@ function getSettingsObject() {
         jitter_amount: parseFloat(sparkleJitterSlider.value),
         animation_stability: sparkleStabilitySelect.value,
         enable_smooth_animation: sparkleSmoothAnimCheckbox.checked,
-        size_min: parseInt(sparkleSizeMinInput.value),
-        size_max: parseInt(sparkleSizeMaxInput.value),
+        size_min: (sparkleSizeMinInput && sparkleSizeMinInput.value !== '') ? Math.max(0, parseInt(sparkleSizeMinInput.value, 10)) : 0,
+        size_max: (sparkleSizeMaxInput && sparkleSizeMaxInput.value !== '') ? Math.max(1, parseInt(sparkleSizeMaxInput.value, 10)) : 24,
         sparkle_opacity: (sparkleOpacityInput ? parseFloat(sparkleOpacityInput.value) : ((parseInt(sparkleOpacitySlider.value) || 255) / 255.0)),
         use_gaussian_blur: sparkleUseBlurCheckbox.checked,
         size_smoothing: sparkleSizeSmoothCheckbox.checked,
         sparkle_blend_mode: sparkleBlendModeSelect.value,
+        sparkle_intensity: getSparkleConfigIntensity(),
+        bloom_blur: getSparkleBloomBlur(),
+        bloom_enabled: sparkleKeySettings.bloomEnabled,
+        bloom_blend_mode: sparkleKeySettings.bloomBlendMode,
+        bloom_strength: sparkleKeySettings.bloomStrength,
+        bloom_radius: sparkleKeySettings.bloomRadius,
+        bloom_opacity: sparkleKeySettings.bloomOpacity,
+        bloom_color: sparkleKeySettings.bloomColor,
         enable_sparkle_blinking: sparkleEnableBlinkingCheckbox.checked,
         sparkle_blinking_speed: parseFloat(sparkleBlinkingSpeedSlider.value),
         
@@ -2304,8 +2548,8 @@ function applySettingsObject(settings) {
     }
     if (settings.animation_stability) sparkleStabilitySelect.value = settings.animation_stability;
     if (settings.enable_smooth_animation !== undefined) sparkleSmoothAnimCheckbox.checked = settings.enable_smooth_animation;
-    if (settings.size_min) sparkleSizeMinInput.value = settings.size_min;
-    if (settings.size_max) sparkleSizeMaxInput.value = settings.size_max;
+    if (settings.size_min !== undefined) sparkleSizeMinInput.value = settings.size_min;
+    if (settings.size_max !== undefined) sparkleSizeMaxInput.value = settings.size_max;
     if (settings.sparkle_opacity !== undefined) {
         let opVal = parseFloat(settings.sparkle_opacity);
         if (opVal > 1.0) opVal = opVal / 255.0;
@@ -2317,6 +2561,41 @@ function applySettingsObject(settings) {
     if (settings.use_gaussian_blur !== undefined) sparkleUseBlurCheckbox.checked = settings.use_gaussian_blur;
     if (settings.size_smoothing !== undefined) sparkleSizeSmoothCheckbox.checked = settings.size_smoothing;
     if (settings.sparkle_blend_mode) sparkleBlendModeSelect.value = settings.sparkle_blend_mode;
+    if (settings.sparkle_intensity !== undefined) {
+        const intVal = parseFloat(settings.sparkle_intensity) || 1.5;
+        if (sparkleIntensitySlider) sparkleIntensitySlider.value = intVal;
+        if (sparkleIntensityInput) sparkleIntensityInput.value = intVal.toFixed(1);
+        if (sparkleIntensityVal) sparkleIntensityVal.textContent = `${intVal.toFixed(1)}x`;
+    }
+    if (settings.bloom_blur !== undefined) {
+        sparkleKeySettings.bloomBlur = parseInt(settings.bloom_blur, 10) || 0;
+        if (sparkleBloomBlurInput) sparkleBloomBlurInput.value = sparkleKeySettings.bloomBlur;
+    }
+    if (settings.bloom_enabled !== undefined) {
+        sparkleKeySettings.bloomEnabled = Boolean(settings.bloom_enabled);
+        if (sparkleBloomEnableCheckbox) sparkleBloomEnableCheckbox.checked = sparkleKeySettings.bloomEnabled;
+    }
+    if (settings.bloom_blend_mode && sparkleBloomBlendModeSelect) {
+        sparkleKeySettings.bloomBlendMode = settings.bloom_blend_mode;
+        sparkleBloomBlendModeSelect.value = settings.bloom_blend_mode;
+    }
+    if (settings.bloom_strength !== undefined && sparkleBloomStrengthInput) {
+        sparkleKeySettings.bloomStrength = parseFloat(settings.bloom_strength) || 1.5;
+        sparkleBloomStrengthInput.value = sparkleKeySettings.bloomStrength;
+    }
+    if (settings.bloom_radius !== undefined && sparkleBloomRadiusInput) {
+        sparkleKeySettings.bloomRadius = parseInt(settings.bloom_radius, 10) || 20;
+        sparkleBloomRadiusInput.value = sparkleKeySettings.bloomRadius;
+    }
+    if (settings.bloom_opacity !== undefined && sparkleBloomOpacityInput) {
+        sparkleKeySettings.bloomOpacity = parseFloat(settings.bloom_opacity) || 1.0;
+        sparkleBloomOpacityInput.value = sparkleKeySettings.bloomOpacity;
+    }
+    if (settings.bloom_color) {
+        sparkleKeySettings.bloomColor = settings.bloom_color;
+        if (sparkleBloomColorInput) sparkleBloomColorInput.value = settings.bloom_color;
+        if (sparkleBloomColorVal) sparkleBloomColorVal.value = settings.bloom_color;
+    }
     
     if (settings.enable_sparkle_blinking !== undefined) {
         sparkleEnableBlinkingCheckbox.checked = settings.enable_sparkle_blinking;
@@ -2857,21 +3136,24 @@ async function generateClientSide(type) {
             const isAnim = spkType !== '1' && SPARKLE_PRESETS[spkType] && SPARKLE_PRESETS[spkType].isAnimated;
             const sEnd = (s.end_frame !== undefined && s.end_frame > 0) ? s.end_frame : totalFrames;
             const sStart = (s.start_frame !== undefined && s.start_frame < sEnd) ? s.start_frame : 0;
+            const gapMin = (typeof sparkleGapMinInput !== 'undefined' && sparkleGapMinInput) ? Math.max(0, parseInt(sparkleGapMinInput.value, 10) || 15) : 15;
+            const gapMax = (typeof sparkleGapMaxInput !== 'undefined' && sparkleGapMaxInput) ? Math.max(gapMin, parseInt(sparkleGapMaxInput.value, 10) || 45) : 45;
+            const gapDur = (s.gap_duration !== undefined) ? s.gap_duration : (Math.floor(Math.random() * (gapMax - gapMin + 1)) + gapMin);
+
             return {
                 x: s.x,
                 y: s.y,
                 size_category: s.size_category,
-                size_multiplier: s.size_multiplier,
+                size_multiplier: s.size_multiplier !== undefined ? s.size_multiplier : 1.0,
                 layer: s.layer || 'sparkles',
                 sparkle_type: spkType,
                 is_animated: isAnim,
                 start_frame: sStart,
                 end_frame: sEnd,
                 timing_mode: s.timing_mode || 'manual',
-                frame_offset: s.frame_offset !== undefined ? s.frame_offset : Math.floor(Math.random() * 50),
-                gap_duration: Math.floor(Math.random() * (parseInt(sparkleGapMaxInput.value) - parseInt(sparkleGapMinInput.value))) + parseInt(sparkleGapMinInput.value),
-                should_appear: isAnim ? true : (Math.random() < parseFloat(sparkleFrequencySlider.value)),
-                prev_size: 0
+                frame_offset: s.frame_offset !== undefined ? s.frame_offset : Math.floor(Math.random() * 120),
+                gap_duration: gapDur,
+                should_appear: true
             };
         });
     }
@@ -3081,9 +3363,13 @@ async function generateClientSide(type) {
 
                             const blurScale = drawParams.dstW / 1200;
                             const blurRadius = (sparkleKeySettings.bloomRadius || 15) * blurScale * (sparkleKeySettings.bloomStrength || 1.2);
+                            const bloomBlurPx = getSparkleBloomBlur() * blurScale;
+                            if (bloomBlurPx > 0 && typeof bCtx.filter !== 'undefined') {
+                                bCtx.filter = `blur(${Math.round(bloomBlurPx)}px)`;
+                            }
                             bCtx.shadowColor = sparkleKeySettings.bloomColor || '#ffffff';
                             bCtx.shadowBlur = blurRadius;
-                            const bAlpha = (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * opacityMax;
+                            const bAlpha = (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * opacityMax * Math.min(2.0, (sparkleKeySettings.bloomStrength || 1.2));
                             bCtx.globalAlpha = Math.max(0.0, Math.min(1.0, bAlpha));
                             drawSingle(bCtx);
                             bCtx.restore();
@@ -3093,91 +3379,44 @@ async function generateClientSide(type) {
                         bCtx.save();
                         bCtx.globalCompositeOperation = currentSparkleBlend;
                         bCtx.globalAlpha = opacityMax;
+                        const spkIntensityAnim = getSparkleConfigIntensity();
+                        if (spkIntensityAnim !== 1.0 && typeof bCtx.filter !== 'undefined') {
+                            bCtx.filter = `brightness(${spkIntensityAnim.toFixed(2)}) contrast(1.15)`;
+                        }
                         drawSingle(bCtx);
+                        if (spkIntensityAnim > 1.2) {
+                            bCtx.globalCompositeOperation = 'lighter';
+                            bCtx.globalAlpha = Math.min(1.0, opacityMax * Math.min(1.0, (spkIntensityAnim - 1.0) * 0.8));
+                            drawSingle(bCtx);
+                        }
                         bCtx.restore();
                     }
                     return;
                 }
 
-                // Statyczny błysk
-                if (!s.should_appear) return;
-                
-                let speedAdjustedFadeIn = fadeIn;
-                let speedAdjustedHold = hold;
-                let speedAdjustedFadeOut = fadeOut;
-                let speedAdjustedGap = s.gap_duration;
-                if (enableBlinking && blinkingSpeed !== 1.0) {
-                    speedAdjustedFadeIn = Math.max(1, Math.floor(fadeIn / blinkingSpeed));
-                    speedAdjustedHold = Math.max(1, Math.floor(hold / blinkingSpeed));
-                    speedAdjustedFadeOut = Math.max(1, Math.floor(fadeOut / blinkingSpeed));
-                    speedAdjustedGap = Math.max(0, Math.floor(s.gap_duration / blinkingSpeed));
-                }
-                const speedAdjustedTotalCycle = speedAdjustedFadeIn + speedAdjustedHold + speedAdjustedFadeOut;
-                
-                let alpha = 0.0;
-                if (s.timing_mode === 'manual') {
-                    if (curFrame < s.start_frame || curFrame > s.end_frame) return;
-                    
-                    let spFadeIn = speedAdjustedFadeIn;
-                    let spFadeOut = speedAdjustedFadeOut;
-                    const durationFrames = s.end_frame - s.start_frame;
-                    if (spFadeIn + spFadeOut > durationFrames) {
-                        const ratio = durationFrames / (spFadeIn + spFadeOut);
-                        spFadeIn = Math.floor(spFadeIn * ratio);
-                        spFadeOut = Math.floor(spFadeOut * ratio);
-                    }
-                    
-                    if (curFrame - s.start_frame < spFadeIn) {
-                        alpha = (curFrame - s.start_frame) / Math.max(1, spFadeIn);
-                    } else if (s.end_frame - curFrame < spFadeOut) {
-                        alpha = (s.end_frame - curFrame) / Math.max(1, spFadeOut);
-                    } else {
-                        alpha = 1.0;
-                        if (jitterAmount > 0.001) {
-                            const jitterVal = Math.sin(s.frame_offset + curFrame * 0.3) * (jitterAmount * 0.5);
-                            alpha = Math.max(1.0 - (jitterAmount * 0.5), Math.min(1.0, 1.0 + jitterVal));
-                        }
-                    }
-                } else {
-                    if (!enableBlinking) {
-                        alpha = 1.0;
-                        if (jitterAmount > 0.001) {
-                            const jitterVal = Math.sin(s.frame_offset + curFrame * 0.3) * (jitterAmount * 0.5);
-                            alpha = Math.max(1.0 - (jitterAmount * 0.5), Math.min(1.0, 1.0 + jitterVal));
-                        }
-                    } else {
-                        const cycleFrame = (curFrame + s.frame_offset) % (speedAdjustedTotalCycle + speedAdjustedGap);
-                        if (cycleFrame < speedAdjustedFadeIn) {
-                            alpha = cycleFrame / speedAdjustedFadeIn;
-                        } else if (cycleFrame < speedAdjustedFadeIn + speedAdjustedHold) {
-                            alpha = 1.0;
-                            if (jitterAmount > 0.001) {
-                                const jitterVal = Math.sin(s.frame_offset + curFrame * 0.3) * (jitterAmount * 0.5);
-                                alpha = Math.max(1.0 - (jitterAmount * 0.5), Math.min(1.0, 1.0 + jitterVal));
-                            }
-                        } else if (cycleFrame < speedAdjustedFadeIn + speedAdjustedHold + speedAdjustedFadeOut) {
-                            alpha = 1.0 - (cycleFrame - (speedAdjustedFadeIn + speedAdjustedHold)) / speedAdjustedFadeOut;
-                        }
-                    }
-                }
-                
-                if (alpha > 0.01) {
-                    const basePixelSize = getSparkleSize(s, drawParams.dstW);
-                    let currentSize = basePixelSize * alpha;
-                    
-                    if (sparkleSizeSmoothCheckbox && sparkleSizeSmoothCheckbox.checked && s.prev_size > 0) {
-                        currentSize = s.prev_size * 0.7 + currentSize * 0.3;
-                    }
-                    s.prev_size = currentSize;
-                    
-                    if (currentSize > 0 && sparkleImg && (sparkleImg.complete || sparkleImg.naturalWidth > 0)) {
+                // Statyczny błysk (Preset 1: Normalny)
+                if (curFrame < s.start_frame || curFrame > s.end_frame) return;
+
+                const factor = getSparklePulseFactor(curFrame, s);
+
+                if (factor > 0.005) {
+                    const sizeMin = getSparkleConfigMin();
+                    const sizeMax = getSparkleConfigMax();
+                    const mult = Math.max(0.01, s.size_multiplier !== undefined ? s.size_multiplier : (state.selectedSizeMultiplier || 1.0));
+
+                    const minPx = sizeMin * mult * (drawParams.dstW / 600);
+                    const maxPx = sizeMax * mult * (drawParams.dstW / 600);
+                    const currentSize = minPx + (maxPx - minPx) * factor;
+
+                    if (currentSize > 0.5 && sparkleImg && (sparkleImg.complete || sparkleImg.naturalWidth > 0)) {
                         const renderSparkleX = drawParams.dstX + (s.x / state.sourceWidth) * drawParams.dstW;
                         const renderSparkleY = drawParams.dstY + (s.y / state.sourceHeight) * drawParams.dstH;
-                        const renderSparkleSize = currentSize;
-                        const dx = renderSparkleX - renderSparkleSize / 2;
-                        const dy = renderSparkleY - renderSparkleSize / 2;
-                        const dw = renderSparkleSize;
-                        const dh = renderSparkleSize;
+                        const dx = renderSparkleX - currentSize / 2;
+                        const dy = renderSparkleY - currentSize / 2;
+                        const dw = currentSize;
+                        const dh = currentSize;
+
+                        const effectiveAlpha = factor * opacityMax;
 
                         // Bloom Layer
                         if (sparkleKeySettings.bloomEnabled && (sparkleKeySettings.bloomStrength || 0) > 0 && (sparkleKeySettings.bloomOpacity || 0) > 0) {
@@ -3198,9 +3437,13 @@ async function generateClientSide(type) {
 
                             const blurScale = drawParams.dstW / 1200;
                             const blurRadius = (sparkleKeySettings.bloomRadius || 15) * blurScale * (sparkleKeySettings.bloomStrength || 1.2);
+                            const bloomBlurPx = getSparkleBloomBlur() * blurScale;
+                            if (bloomBlurPx > 0 && typeof bCtx.filter !== 'undefined') {
+                                bCtx.filter = `blur(${Math.round(bloomBlurPx)}px)`;
+                            }
                             bCtx.shadowColor = sparkleKeySettings.bloomColor || '#ffffff';
                             bCtx.shadowBlur = blurRadius;
-                            const bAlpha = (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * alpha * opacityMax;
+                            const bAlpha = (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * effectiveAlpha * Math.min(2.0, (sparkleKeySettings.bloomStrength || 1.2));
                             bCtx.globalAlpha = Math.max(0.0, Math.min(1.0, bAlpha));
                             bCtx.drawImage(sparkleImg, dx, dy, dw, dh);
                             bCtx.restore();
@@ -3209,8 +3452,17 @@ async function generateClientSide(type) {
                         // Core frame
                         bCtx.save();
                         bCtx.globalCompositeOperation = currentSparkleBlend;
-                        bCtx.globalAlpha = alpha * opacityMax;
+                        bCtx.globalAlpha = effectiveAlpha;
+                        const spkIntensityStatic = getSparkleConfigIntensity();
+                        if (spkIntensityStatic !== 1.0 && typeof bCtx.filter !== 'undefined') {
+                            bCtx.filter = `brightness(${spkIntensityStatic.toFixed(2)}) contrast(1.15)`;
+                        }
                         bCtx.drawImage(sparkleImg, dx, dy, dw, dh);
+                        if (spkIntensityStatic > 1.2) {
+                            bCtx.globalCompositeOperation = 'lighter';
+                            bCtx.globalAlpha = Math.min(1.0, effectiveAlpha * Math.min(1.0, (spkIntensityStatic - 1.0) * 0.8));
+                            bCtx.drawImage(sparkleImg, dx, dy, dw, dh);
+                        }
                         bCtx.restore();
                     }
                 }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generator Śnieg-Błysk - Generator animowanych Śnieżynek & Błysków</title>
+    <title>Snow Sparkle Generator - Generator Śnieżynek & Błysków</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -16,8 +16,8 @@
             <div class="logo-area">
                 <span class="logo-icon">❄️</span>
                 <div class="logo-text">
-                    <h1>Generator Śnieg-Błysk</h1>
-                    <p>Generator animowanych Śnieżynek & Błysków Pro</p>
+                    <h1>Snow Sparkle Generator</h1>
+                    <p>Generator Śnieżynek & Błysków Pro</p>
                 </div>
             </div>
             <div class="header-actions" style="display: flex; gap: 10px;">
@@ -399,18 +399,24 @@
                             </select>
                         </div>
 
-                        <!-- Wpisywana intensywność, promień oraz przeźroczystość -->
-                        <div class="grid-3" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                        <!-- Wpisywana intensywność, promień, rozmazanie oraz przeźroczystość -->
+                        <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                             <div class="form-group">
-                                <label for="sparkle-bloom-strength">Intensywność:</label>
-                                <input type="number" id="sparkle-bloom-strength" min="0" max="10.0" step="0.1" value="1.2" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz intensywność blasku (np. 1.2, 0.5, 2.0)">
+                                <label for="sparkle-bloom-strength">Intensywność blasku:</label>
+                                <input type="number" id="sparkle-bloom-strength" min="0" max="10.0" step="0.1" value="1.5" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz intensywność blasku (np. 1.5, 2.0)">
                             </div>
                             <div class="form-group">
-                                <label for="sparkle-bloom-radius">Promień (px):</label>
-                                <input type="number" id="sparkle-bloom-radius" min="0" max="300" step="1" value="15" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz promień rozmycia w pikselach (np. 15, 30, 50)">
+                                <label for="sparkle-bloom-radius">Promień poświaty (px):</label>
+                                <input type="number" id="sparkle-bloom-radius" min="0" max="300" step="1" value="20" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz promień poświaty w pikselach (np. 20, 35, 50)">
+                            </div>
+                        </div>
+                        <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;">
+                            <div class="form-group">
+                                <label for="sparkle-bloom-blur">Rozmazanie bloom (px):</label>
+                                <input type="number" id="sparkle-bloom-blur" min="0" max="100" step="1" value="12" class="form-control" style="text-align: center; font-weight: 600;" title="Rozmycie / rozmazanie poświaty bloom w pikselach (np. 10, 15, 25)">
                             </div>
                             <div class="form-group">
-                                <label for="sparkle-bloom-opacity">Przeźroczystość:</label>
+                                <label for="sparkle-bloom-opacity">Przeźroczystość blasku:</label>
                                 <input type="number" id="sparkle-bloom-opacity" min="0" max="1.0" step="0.05" value="1.0" class="form-control" style="text-align: center; font-weight: 600;" title="Wpisz przeźroczystość blasku od 0.0 do 1.0 (np. 1.0, 0.7, 0.5)">
                             </div>
                         </div>
@@ -494,7 +500,7 @@
                         <div class="grid-2">
                             <div class="form-group">
                                 <label for="sparkle-size-min">Rozmiar min (px):</label>
-                                <input type="number" id="sparkle-size-min" value="8" min="1" class="form-control">
+                                <input type="number" id="sparkle-size-min" value="0" min="0" class="form-control">
                             </div>
                             <div class="form-group">
                                 <label for="sparkle-size-max">Rozmiar max (px):</label>
@@ -514,6 +520,19 @@
                                 <span class="range-value" id="sparkle-opacity-val" style="min-width: 45px; text-align: right; font-weight: 600;">100%</span>
                             </div>
                         </div>
+                        <div class="form-group" style="margin-top: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <label for="sparkle-intensity-input" style="margin: 0; font-weight: 500;">Intensywność / jasność błysku:</label>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="sparkle-intensity-input" min="0.5" max="5.0" step="0.1" value="1.5" class="form-control" style="width: 75px; height: 28px; padding: 2px 6px; text-align: center; font-weight: 600; font-size: 0.85rem;" title="Wpisz mnożnik intensywności błysku (np. 1.0, 1.5, 2.0, 3.0)">
+                                    <span style="font-size: 0.8rem; color: var(--color-text-muted);">(0.5 - 5.0x)</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" id="sparkle-intensity" min="0.5" max="5.0" step="0.1" value="1.5" class="range-slider" style="flex: 1;">
+                                <span class="range-value" id="sparkle-intensity-val" style="min-width: 45px; text-align: right; font-weight: 600;">1.5x</span>
+                            </div>
+                        </div>
                         <div class="form-group checkbox-group">
                             <input type="checkbox" id="sparkle-use-blur" checked>
                             <label for="sparkle-use-blur">Rozmycie krawędzi (Gaussian Blur)</label>
@@ -525,8 +544,8 @@
                         <div class="form-group">
                             <label for="sparkle-blend-mode">Tryb mieszania błysków (Blend Mode):</label>
                             <select id="sparkle-blend-mode" class="form-control">
-                                <option value="normal">Normal (Standardowy / Źródłowy - zalecany na wideo)</option>
-                                <option value="screen" selected>Screen (Ekran - jasny)</option>
+                                <option value="normal" selected>Normal (Standardowy / Źródłowy - zalecany na wideo)</option>
+                                <option value="screen">Screen (Ekran - jasny)</option>
                                 <option value="addition">Addition (Dodawanie / Lighter)</option>
                                 <option value="overlay">Overlay (Nakładka)</option>
                                 <option value="soft_light">Soft Light (Łagodne światło)</option>
@@ -711,7 +730,7 @@
                         </div>
                         <div class="console-log-container" id="console-logs" style="margin-top: 6px;">
                             <!-- Logi będą tu lądować -->
-                            <div class="log-line info">Witamy w Generator Śnieg-Błysk. Wybierz plik tła i dostosuj parametry.</div>
+                            <div class="log-line info">Witamy w Snow Sparkle Generator. Wybierz plik tła i dostosuj parametry.</div>
                         </div>
                     </div>
                 </div>
@@ -726,7 +745,7 @@
     <div id="info-modal" class="modal-overlay" style="display: none;">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>ℹ️ Informacje o Generator Śnieg-Błysk</h3>
+                <h3>ℹ️ Informacje o Snow Sparkle Generator</h3>
                 <span id="btn-close-info" class="modal-close-btn" title="Zamknij">&times;</span>
             </div>
             <div class="modal-body">
