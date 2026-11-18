@@ -1,6 +1,12 @@
 <p align="center">
-  <a href="https://github.com/yaneprin/Generator-Snieg-Blysk">
-    <img src="assets/generator.png" alt="Generator Śnieżynek i Błysków Banner" width="100%">
+  <a href="https://yaneprin.github.io/Generator-Snieg-Blysk/" target="_blank">
+    <img width="64px" height="64px" src="generator.png" alt="Generator Śnieżynek i Błysków Banner" width="100%">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://yaneprin.github.io/Generator-Snieg-Blysk/" target="_blank">
+    <img src="https://img.shields.io/badge/🚀_Otwórz_Generator-Na_GitHub_Pages-brightgreen?style=for-the-badge" alt="Otwórz aplikację">
   </a>
 </p>
 
@@ -27,7 +33,7 @@ Aplikacja działa w całości w przeglądarce internetowej (**HTML5 Canvas 2D, S
 
 ### 3. Paleta Błysków i Rozbłysków
 * **4 gotowe presety:**
-  1. *Normalny błysk statyczny* (`assets/blysk.png`) z kontrolą pulsowania i zanikania.
+  1. *Normalny błysk statyczny* (`blysk.png`) z kontrolą pulsowania i zanikania.
   2. *Animowany Snowdrop 01* (opadający rozbłysk wideo).
   3. *Animowany Błysk 01* (promienisty, dynamiczny wybuch światła).
   4. *Animowana Śnieżynka 01* (wirujący płatek śniegu z rozbłyskiem).
@@ -52,10 +58,10 @@ Aplikacja działa w całości w przeglądarce internetowej (**HTML5 Canvas 2D, S
 
 ## 🚀 Jak Korzystać z Aplikacji (Szybki Start)
 
-1. **Otwórz aplikację** w dowolnej nowoczesnej przeglądarce internetowej (Google Chrome, Microsoft Edge, Mozilla Firefox, Safari).
+1. **Otwórz aplikację online:** Przejdź pod adres [Generator Śniegu i Błysków na GitHub Pages](https://yaneprin.github.io/Generator-Snieg-Blysk/) lub uruchom plik `index.html` lokalnie w przeglądarce.
 2. **Wgraj plik źródłowy** (zdjęcie w formacie JPG/PNG lub film MP4/WebM) przeciągając go do obszaru roboczego lub używając przycisku wyboru pliku.
 3. **Dodaj błyski:** Kliknij w wybrane miejsce na podglądzie, aby umieścić punkt świetlny. Użyj klawiszy `1-4` na klawiaturze, aby szybko zmieniać typy pędzli (błyski, śnieżynki, animowane rozbłyski).
-4. **Dostosuj oś czasu:** Rozszerzaj, przesuwaj lub skracaj klipy błysków na osi czasu na dole ekranu, dostosowując moment ich pojawienia się i zникnięcia.
+4. **Dostosuj oś czasu:** Rozszerzaj, przesuwaj lub skracaj klipy błysków na osi czasu na dole ekranu, dostosowując moment ich pojawienia się i zniknięcia.
 5. **Skonfiguruj śnieg:** W panelu bocznym włącz generator śniegu i dostosuj gęstość, kierunek wiatru oraz głębię ostrości.
 6. **Eksportuj:** Wybierz interesujący Cię format wyjściowy (MP4 lub WebM), rozdzielczość i kliknij przycisk **Eksportuj**. Gotowy plik zapisze się bezpośrednio na Twoim urządzeniu.
 
@@ -64,15 +70,13 @@ Aplikacja działa w całości w przeglądarce internetowej (**HTML5 Canvas 2D, S
 ## 📁 Struktura Repozytorium
 
 ```text
-├── index.html           # Główny plik aplikacji
+├── index.html           # Główny plik aplikacji (GitHub Pages)
 ├── style.css            # Style interfejsu Dark Mode Pro
 ├── script.js            # Silnik Canvas 2D, oś czasu i MediaRecorder
-├── assets/              # Zasoby graficzne, sprite'y i animacje wideo
+├── generator.png        # Główny baner wizualny projektu
+├── blysk.png            # Tekstura domyślnego błysku
+├── snieg_blysk.png      # Zasób graficzny podglądu efektów
+├── Blask_ze_sniegiem.mp4# Przykładowy materiał wideo testowy
+├── input.jpg / input2.jpg # Przykładowe pliki graficzne
+├── assets/              # Dodatkowe zasoby i sprite'y animacji
 └── docs/                # Lustrzana kopia aplikacji dla GitHub Pages
-```
-📄 Licencja i Kompatybilność
-Licencja: MIT
-
-Przeglądarki: Google Chrome, Microsoft Edge, Mozilla Firefox, Apple Safari, Opera.
-
-Wymagania: Włączona obsługa JavaScript oraz Canvas API w przeglądarce.
