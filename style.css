@@ -632,6 +632,16 @@ select.form-control[multiple] {
     object-fit: fill;
 }
 
+.snow-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+}
+
 .sparkles-overlay {
     position: absolute;
     top: 0;
@@ -640,6 +650,7 @@ select.form-control[multiple] {
     height: 100%;
     pointer-events: all;
     cursor: crosshair;
+    z-index: 3;
 }
 
 .sparkles-overlay circle {

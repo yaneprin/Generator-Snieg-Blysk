@@ -172,6 +172,9 @@ const mediaViewport = document.getElementById('media-viewport');
 const previewImage = document.getElementById('preview-image');
 const previewVideo = document.getElementById('preview-video');
 const canvasOverlay = document.getElementById('canvas-overlay');
+const snowPreviewCanvas = document.getElementById('snow-preview-canvas');
+const previewShowSnow = document.getElementById('preview-show-snow');
+const previewShowSparkles = document.getElementById('preview-show-sparkles');
 const sparklesCount = document.getElementById('sparkles-count');
 const sparklesList = document.getElementById('sparkles-list');
 const btnClearSparkles = document.getElementById('btn-clear-sparkles');
@@ -595,6 +598,37 @@ function setupSliders() {
         snowDensityInput.addEventListener('input', onDensityInputChange);
         snowDensityInput.addEventListener('change', onDensityInputChange);
     }
+
+    const triggerSnowUpdate = () => {
+        if (typeof initPreviewSnowParticles === 'function') {
+            initPreviewSnowParticles();
+        }
+    };
+    [snowDensitySlider, snowDensityInput, snowMinSizeInput, snowMaxSizeInput, snowDepthLayersInput, snowFallModeSelect, snowFallSpeedInput, snowFallMinInput, snowFallMaxInput].forEach(el => {
+        if (el) {
+            el.addEventListener('input', triggerSnowUpdate);
+            el.addEventListener('change', triggerSnowUpdate);
+        }
+    });
+
+    if (previewShowSnow) {
+        previewShowSnow.addEventListener('change', () => {
+            if (!previewShowSnow.checked && snowPreviewCanvas) {
+                const ctx = snowPreviewCanvas.getContext('2d');
+                ctx.clearRect(0, 0, snowPreviewCanvas.width, snowPreviewCanvas.height);
+                snowPreviewCanvas.style.display = 'none';
+            } else if (snowPreviewCanvas) {
+                snowPreviewCanvas.style.display = 'block';
+                triggerSnowUpdate();
+            }
+        });
+    }
+
+    if (previewShowSparkles) {
+        previewShowSparkles.addEventListener('change', () => {
+            canvasOverlay.style.display = previewShowSparkles.checked ? '' : 'none';
+        });
+    }
     bindSlider(snowOpacitySlider, snowOpacityVal);
     bindSlider(snowDepthStrengthSlider, snowDepthStrengthVal);
     bindSlider(snowParallaxSlider, snowParallaxVal);
@@ -792,6 +826,19 @@ function resizeOverlay(mediaElement) {
     canvasOverlay.style.top = '0px';
     canvasOverlay.style.width = '100%';
     canvasOverlay.style.height = '100%';
+
+    if (snowPreviewCanvas) {
+        snowPreviewCanvas.width = state.sourceWidth;
+        snowPreviewCanvas.height = state.sourceHeight;
+        snowPreviewCanvas.style.position = 'absolute';
+        snowPreviewCanvas.style.left = '0px';
+        snowPreviewCanvas.style.top = '0px';
+        snowPreviewCanvas.style.width = '100%';
+        snowPreviewCanvas.style.height = '100%';
+        if (typeof initPreviewSnowParticles === 'function') {
+            initPreviewSnowParticles();
+        }
+    }
     
     drawSparkles();
 }
@@ -1230,7 +1277,7 @@ function ensureSparkleProperties(s, idx) {
 }
 
 // HELPER: CALCULATE ACCURATE BLINKING / PULSE FACTOR (0.0 -> 1.0 -> 0.0)
-function getSparklePulseFactor(curFrame, s) {
+function getSparklePulseFactor(curFrame, s, ignoreRange = false) {
     const enableBlinking = (typeof sparkleEnableBlinkingCheckbox !== 'undefined' && sparkleEnableBlinkingCheckbox)
         ? sparkleEnableBlinkingCheckbox.checked
         : true;
@@ -1241,7 +1288,7 @@ function getSparklePulseFactor(curFrame, s) {
 
     const start = (s && s.start_frame !== undefined) ? s.start_frame : 0;
     const end = (s && s.end_frame !== undefined) ? s.end_frame : 999999;
-    if (curFrame < start || curFrame > end) {
+    if (!ignoreRange && (curFrame < start || curFrame > end)) {
         return 0.0;
     }
 
@@ -1268,7 +1315,7 @@ function getSparklePulseFactor(curFrame, s) {
         ? s.initial_delay
         : ((s && s.frame_offset !== undefined) ? s.frame_offset : 0);
 
-    const elapsedInClip = Math.max(0, curFrame - start);
+    const elapsedInClip = ignoreRange ? curFrame : Math.max(0, curFrame - start);
     if (elapsedInClip < initialDelay) {
         return 0.0;
     }
@@ -1304,10 +1351,10 @@ function getSparklePulseFactor(curFrame, s) {
 }
 
 // HELPER: CALCULATE ACCURATE ANIMATED SPRITESHEET FRAME AND VISIBILITY (PRESETS 2, 3, 4)
-function getAnimatedSparkleFrameAndOpacity(curFrame, s, preset, speed) {
+function getAnimatedSparkleFrameAndOpacity(curFrame, s, preset, speed, ignoreRange = false) {
     const start = (s && s.start_frame !== undefined) ? s.start_frame : 0;
     const end = (s && s.end_frame !== undefined) ? s.end_frame : 999999;
-    if (curFrame < start || curFrame > end) {
+    if (!ignoreRange && (curFrame < start || curFrame > end)) {
         return { frame: 0, visible: false, opacity: 0.0 };
     }
 
@@ -1324,7 +1371,7 @@ function getAnimatedSparkleFrameAndOpacity(curFrame, s, preset, speed) {
         ? s.initial_delay
         : ((s && s.frame_offset !== undefined) ? s.frame_offset : 0);
 
-    const elapsedInClip = Math.max(0, curFrame - start);
+    const elapsedInClip = ignoreRange ? curFrame : Math.max(0, curFrame - start);
     if (elapsedInClip < initialDelay) {
         return { frame: 0, visible: false, opacity: 0.0 };
     }
@@ -1356,6 +1403,119 @@ function getSparkleSize(sparkle, referenceWidth) {
     return Math.max(0, Math.round(baseSize * mult));
 }
 
+// ==========================================
+// SNOW PARTICLES & PREVIEW SIMULATION CLASS
+// ==========================================
+class SnowParticle {
+    constructor(w, h, minSize, maxSize, depthLayers, fallMode, fallSpeed, fallMin, fallMax) {
+        this.w = w;
+        this.h = h;
+        this.size = Math.random() * (maxSize - minSize) + minSize;
+        this.depth = Math.floor(Math.random() * depthLayers);
+        this.depthFactor = this.depth / Math.max(1, depthLayers - 1);
+        
+        if (fallMode === 'uniform') {
+            this.vy = fallSpeed;
+        } else {
+            this.vy = Math.random() * (fallMax - fallMin) + fallMin;
+        }
+        
+        this.x = Math.random() * (w + 200) - 100;
+        this.y = Math.random() * (h + 100) - 50;
+        this.vx = Math.random() * 2 - 1;
+        this.wobble = Math.random() * Math.PI * 2;
+        this.wobbleSpeed = Math.random() * 0.1 + 0.05;
+    }
+    
+    update(windX, windInfluence, turbulence, randomness, amount, parallaxSpeed) {
+        this.vx += windX * windInfluence * 0.01;
+        
+        const parallaxMult = 0.3 + this.depthFactor * (1.0 + parallaxSpeed * 0.5);
+        this.vx += (Math.random() * 2 - 1) * turbulence * 0.05;
+        this.vx += (Math.random() * 2 - 1) * randomness * amount * 0.01;
+        
+        this.wobble += this.wobbleSpeed;
+        this.vx += Math.sin(this.wobble) * 0.02;
+        
+        this.x += this.vx * parallaxMult;
+        this.y += this.vy * parallaxMult;
+        
+        if (this.x > this.w + 100) this.x = -100;
+        else if (this.x < -100) this.x = this.w + 100;
+        
+        if (this.y > this.h + 50) {
+            this.y = -50;
+            this.x = Math.random() * (this.w + 200) - 100;
+        }
+    }
+}
+
+function drawSnowflake(ctx, x, y, radius, opacity, depthFactor, glowStrength, dofFocus = 0.5, dofBlurStrength = 1.0, dofHaze = 0.3, dofLensFade = 0.5, img = null) {
+    const sizeWithDepth = radius * (0.3 + depthFactor * 0.7);
+    if (sizeWithDepth <= 0) return;
+    
+    // Atmospheric haze and lens fade factors
+    const hazeMult = 1.0 - (1.0 - depthFactor) * (dofHaze || 0.3);
+    let lensMult = 1.0;
+    if (depthFactor > 0.8) {
+        lensMult = 1.0 - ((depthFactor - 0.8) / 0.2) * (dofLensFade || 0.5);
+    }
+    
+    const alpha = (opacity / 255.0) * (0.5 + depthFactor * 0.5) * hazeMult * lensMult;
+    const finalAlpha = Math.max(0.0, Math.min(1.0, alpha * (1.0 + (glowStrength || 0.5) * depthFactor)));
+    if (finalAlpha <= 0.005) return;
+
+    if (img && img.complete && img.naturalWidth > 0) {
+        ctx.globalAlpha = finalAlpha;
+        const dSize = sizeWithDepth * 2;
+        ctx.drawImage(img, x - sizeWithDepth, y - sizeWithDepth, dSize, dSize);
+    } else {
+        const dSize = sizeWithDepth * 2;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, dSize);
+        grad.addColorStop(0, `rgba(255, 255, 255, ${finalAlpha})`);
+        grad.addColorStop(0.35, `rgba(255, 255, 255, ${finalAlpha * 0.65})`);
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, dSize, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+// Live Preview Snow state
+let previewSnowParticles = [];
+let previewSnowImg = new Image();
+
+function updatePreviewSnowTexture() {
+    const snowVal = (typeof snowflakeTextureSelect !== 'undefined' && snowflakeTextureSelect) ? snowflakeTextureSelect.value : null;
+    previewSnowImg.src = (snowVal && (snowVal.startsWith('blob:') || snowVal.startsWith('data:'))) 
+        ? snowVal 
+        : (snowVal && snowVal.includes('assets/') 
+            ? (window.location.protocol === 'file:' ? BUILTIN_SNOW_TEXTURE : snowVal) 
+            : BUILTIN_SNOW_TEXTURE);
+}
+updatePreviewSnowTexture();
+
+function initPreviewSnowParticles() {
+    const w = state.sourceWidth || 1920;
+    const h = state.sourceHeight || 1080;
+    const density = (typeof snowDensityInput !== 'undefined' && snowDensityInput ? parseInt(snowDensityInput.value) : 0) || (snowDensitySlider ? parseInt(snowDensitySlider.value) : 450) || 450;
+    const previewDensity = Math.min(density, 600);
+    const minSize = (typeof snowMinSizeInput !== 'undefined' && snowMinSizeInput) ? (parseInt(snowMinSizeInput.value) || 3) : 3;
+    const maxSize = (typeof snowMaxSizeInput !== 'undefined' && snowMaxSizeInput) ? (parseInt(snowMaxSizeInput.value) || 12) : 12;
+    const depthLayers = (typeof snowDepthLayersInput !== 'undefined' && snowDepthLayersInput) ? (parseInt(snowDepthLayersInput.value) || 12) : 12;
+    const fallMode = (typeof snowFallModeSelect !== 'undefined' && snowFallModeSelect) ? snowFallModeSelect.value : 'uniform';
+    const fallSpeed = (typeof snowFallSpeedInput !== 'undefined' && snowFallSpeedInput) ? (parseFloat(snowFallSpeedInput.value) || 1.5) : 1.5;
+    const fallMin = (typeof snowFallMinInput !== 'undefined' && snowFallMinInput) ? (parseFloat(snowFallMinInput.value) || 0.5) : 0.5;
+    const fallMax = (typeof snowFallMaxInput !== 'undefined' && snowFallMaxInput) ? (parseFloat(snowFallMaxInput.value) || 3.0) : 3.0;
+
+    previewSnowParticles = [];
+    for (let i = 0; i < previewDensity; i++) {
+        previewSnowParticles.push(new SnowParticle(w, h, minSize, maxSize, depthLayers, fallMode, fallSpeed, fallMin, fallMax));
+    }
+}
+
 // LIVE PREVIEW ANIMATION LOOP
 let livePreviewRafId = null;
 let livePreviewLastTime = 0;
@@ -1371,22 +1531,96 @@ function startLivePreviewLoop() {
         if (timestamp - livePreviewLastTime < 33) return;
         livePreviewLastTime = timestamp;
 
-        if (!mediaViewport || mediaViewport.style.display === 'none' || state.sparkles.length === 0) return;
+        if (!mediaViewport || mediaViewport.style.display === 'none') return;
 
         previewGlobalFrame++;
+
+        // 1. ANIMACJA ŚNIEGU NA PODGLĄDZIE (SNOW LIVE PREVIEW)
+        const showSnow = !previewShowSnow || previewShowSnow.checked;
+        if (snowPreviewCanvas && showSnow && state.sourceWidth && state.sourceHeight) {
+            snowPreviewCanvas.style.display = 'block';
+            const snowCtx = snowPreviewCanvas.getContext('2d');
+            snowCtx.clearRect(0, 0, snowPreviewCanvas.width, snowPreviewCanvas.height);
+
+            if (previewSnowParticles.length === 0) {
+                initPreviewSnowParticles();
+            }
+
+            const windX = (typeof snowWindXInput !== 'undefined' && snowWindXInput) ? (parseFloat(snowWindXInput.value) || 2.0) : 2.0;
+            const windInfluence = (typeof snowWindStrengthInput !== 'undefined' && snowWindStrengthInput) ? ((parseFloat(snowWindStrengthInput.value) || 15.0) / 15.0) : 1.0;
+            const turbulence = (typeof snowTurbulenceInput !== 'undefined' && snowTurbulenceInput) ? (parseFloat(snowTurbulenceInput.value) || 0.5) : 0.5;
+            const randomness = (typeof snowRandomnessInput !== 'undefined' && snowRandomnessInput) ? (parseFloat(snowRandomnessInput.value) || 0.6) : 0.6;
+            const amount = 2.5;
+            const parallaxSpeed = (typeof snowParallaxSlider !== 'undefined' && snowParallaxSlider) ? (parseFloat(snowParallaxSlider.value) || 1.0) : 1.0;
+            const opacity = (typeof snowOpacitySlider !== 'undefined' && snowOpacitySlider) ? (parseInt(snowOpacitySlider.value) || 220) : 220;
+            const glowStrength = (typeof snowGlowInput !== 'undefined' && snowGlowInput) ? (parseFloat(snowGlowInput.value) || 0.5) : 0.5;
+
+            snowCtx.save();
+            const blendModes = {
+                'normal': 'source-over',
+                'addition': 'lighter',
+                'screen': 'screen',
+                'overlay': 'overlay',
+                'multiply': 'multiply',
+                'soft_light': 'soft-light',
+                'hard_light': 'hard-light'
+            };
+            snowCtx.globalCompositeOperation = blendModes[snowBlendModeSelect ? snowBlendModeSelect.value : 'normal'] || 'source-over';
+
+            const dofFocus = (typeof snowDofFocusSlider !== 'undefined' && snowDofFocusSlider) ? (parseFloat(snowDofFocusSlider.value) || 0.5) : 0.5;
+            const dofBlur = (typeof snowDofBlurSlider !== 'undefined' && snowDofBlurSlider) ? (parseFloat(snowDofBlurSlider.value) || 1.0) : 1.0;
+            const dofHaze = (typeof snowDofHazeSlider !== 'undefined' && snowDofHazeSlider) ? (parseFloat(snowDofHazeSlider.value) || 0.3) : 0.3;
+            const dofLensFade = (typeof snowDofLensFadeSlider !== 'undefined' && snowDofLensFadeSlider) ? (parseFloat(snowDofLensFadeSlider.value) || 0.5) : 0.5;
+
+            const fadeEnabled = (typeof snowEnableFadeCheckbox !== 'undefined' && snowEnableFadeCheckbox) ? snowEnableFadeCheckbox.checked : true;
+            const startY = state.sourceHeight * ((typeof snowFadeStartInput !== 'undefined' && snowFadeStartInput ? parseInt(snowFadeStartInput.value) : 60) / 100.0);
+            const endY = state.sourceHeight * ((typeof snowFadeEndInput !== 'undefined' && snowFadeEndInput ? parseInt(snowFadeEndInput.value) : 95) / 100.0);
+
+            previewSnowParticles.forEach(p => {
+                p.update(windX, windInfluence, turbulence, randomness, amount, parallaxSpeed);
+
+                let alphaFactor = 1.0;
+                if (fadeEnabled && p.y > startY) {
+                    if (p.y >= endY) alphaFactor = 0.0;
+                    else alphaFactor = 1.0 - (p.y - startY) / (endY - startY);
+                }
+
+                drawSnowflake(snowCtx, p.x, p.y, p.size, opacity * alphaFactor, p.depthFactor, glowStrength, dofFocus, dofBlur, dofHaze, dofLensFade, previewSnowImg);
+            });
+            snowCtx.restore();
+        } else if (snowPreviewCanvas) {
+            snowPreviewCanvas.style.display = 'none';
+        }
+
+        // 2. ANIMACJA BŁYSKÓW NA PODGLĄDZIE (SPARKLES LIVE PREVIEW)
+        const showSparkles = !previewShowSparkles || previewShowSparkles.checked;
+        if (!showSparkles) {
+            canvasOverlay.style.display = 'none';
+            return;
+        } else {
+            canvasOverlay.style.display = '';
+        }
+
+        if (state.sparkles.length === 0) return;
+
         const speed = state.sparkleAnimSpeed !== undefined ? state.sparkleAnimSpeed : 1.0;
         const isVideoPlaying = (state.isVideo && previewVideo && !previewVideo.paused);
-        const currentVideoFrame = (state.isVideo && previewVideo) ? Math.round(previewVideo.currentTime * state.fps) : 0;
-        const animTickFrame = isVideoPlaying ? currentVideoFrame : previewGlobalFrame;
+        const isImagePlaying = (!state.isVideo && Boolean(window.imagePlayInterval));
+        const isPlaying = isVideoPlaying || isImagePlaying;
 
-        // 1. Animacja spritesheetów (Presety 2, 3, 4)
+        const currentMediaFrame = state.isVideo
+            ? (previewVideo ? Math.round(previewVideo.currentTime * state.fps) : 0)
+            : (state.currentFrame || 0);
+
+        // A. Animacja spritesheetów (Presety 2, 3, 4)
         const animatedElements = canvasOverlay.querySelectorAll('.sparkle-animated-item');
         if (animatedElements && animatedElements.length > 0) {
             const globalOpacity = getSparkleConfigOpacity();
             animatedElements.forEach(img => {
                 const start = parseInt(img.getAttribute('data-start') || '0', 10);
                 const end = parseInt(img.getAttribute('data-end') || '999999', 10);
-                if (state.isVideo && (currentVideoFrame < start || currentVideoFrame > end)) {
+
+                if (state.isVideo && (currentMediaFrame < start || currentMediaFrame > end)) {
                     img.setAttribute('opacity', '0');
                     return;
                 }
@@ -1407,7 +1641,8 @@ function startLivePreviewLoop() {
                     gap_duration: gap
                 };
 
-                const animInfo = getAnimatedSparkleFrameAndOpacity(animTickFrame, sparkleTiming, preset, speed);
+                const tickFrame = isPlaying ? currentMediaFrame : previewGlobalFrame;
+                const animInfo = getAnimatedSparkleFrameAndOpacity(tickFrame, sparkleTiming, preset, speed, !isPlaying);
                 if (!animInfo.visible || animInfo.opacity <= 0.005) {
                     img.setAttribute('opacity', '0');
                     return;
@@ -1429,7 +1664,7 @@ function startLivePreviewLoop() {
             });
         }
 
-        // 2. Animacja Preset 1 (Normalny statyczny błysk - pulsowanie rozmiaru od min do max i z powrotem)
+        // B. Animacja Preset 1 (Normalny statyczny błysk - pulsowanie rozmiaru od min do max i z powrotem)
         const staticPulseElements = canvasOverlay.querySelectorAll('.sparkle-static-pulse');
         if (staticPulseElements && staticPulseElements.length > 0) {
             const sizeMin = getSparkleConfigMin();
@@ -1441,7 +1676,7 @@ function startLivePreviewLoop() {
                 const start = parseInt(el.getAttribute('data-start') || '0', 10);
                 const end = parseInt(el.getAttribute('data-end') || '999999', 10);
 
-                if (state.isVideo && (currentVideoFrame < start || currentVideoFrame > end)) {
+                if (state.isVideo && (currentMediaFrame < start || currentMediaFrame > end)) {
                     el.setAttribute('opacity', '0');
                     el.setAttribute('width', '0');
                     el.setAttribute('height', '0');
@@ -1466,7 +1701,8 @@ function startLivePreviewLoop() {
                     gap_duration: gap
                 };
 
-                const factor = getSparklePulseFactor(animTickFrame, sparkleTiming);
+                const tickFrame = isPlaying ? currentMediaFrame : previewGlobalFrame;
+                const factor = getSparklePulseFactor(tickFrame, sparkleTiming, !isPlaying);
 
                 const minPx = sizeMin * mult * (refW / 600);
                 const maxPx = sizeMax * mult * (refW / 600);
@@ -3027,83 +3263,6 @@ function loadLocalFile(file) {
             };
         };
         reader.readAsDataURL(file);
-    }
-}
-
-class SnowParticle {
-    constructor(w, h, minSize, maxSize, depthLayers, fallMode, fallSpeed, fallMin, fallMax) {
-        this.w = w;
-        this.h = h;
-        this.size = Math.random() * (maxSize - minSize) + minSize;
-        this.depth = Math.floor(Math.random() * depthLayers);
-        this.depthFactor = this.depth / Math.max(1, depthLayers - 1);
-        
-        if (fallMode === 'uniform') {
-            this.vy = fallSpeed;
-        } else {
-            this.vy = Math.random() * (fallMax - fallMin) + fallMin;
-        }
-        
-        this.x = Math.random() * (w + 200) - 100;
-        this.y = Math.random() * (h + 100) - 50;
-        this.vx = Math.random() * 2 - 1;
-        this.wobble = Math.random() * Math.PI * 2;
-        this.wobbleSpeed = Math.random() * 0.1 + 0.05;
-    }
-    
-    update(windX, windInfluence, turbulence, randomness, amount, parallaxSpeed) {
-        this.vx += windX * windInfluence * 0.01;
-        
-        const parallaxMult = 0.3 + this.depthFactor * (1.0 + parallaxSpeed * 0.5);
-        this.vx += (Math.random() * 2 - 1) * turbulence * 0.05;
-        this.vx += (Math.random() * 2 - 1) * randomness * amount * 0.01;
-        
-        this.wobble += this.wobbleSpeed;
-        this.vx += Math.sin(this.wobble) * 0.02;
-        
-        this.x += this.vx * parallaxMult;
-        this.y += this.vy * parallaxMult;
-        
-        if (this.x > this.w + 100) this.x = -100;
-        else if (this.x < -100) this.x = this.w + 100;
-        
-        if (this.y > this.h + 50) {
-            this.y = -50;
-            this.x = Math.random() * (this.w + 200) - 100;
-        }
-    }
-}
-
-function drawSnowflake(ctx, x, y, radius, opacity, depthFactor, glowStrength, dofFocus = 0.5, dofBlurStrength = 1.0, dofHaze = 0.3, dofLensFade = 0.5, img = null) {
-    const sizeWithDepth = radius * (0.3 + depthFactor * 0.7);
-    if (sizeWithDepth <= 0) return;
-    
-    // Atmospheric haze and lens fade factors
-    const hazeMult = 1.0 - (1.0 - depthFactor) * (dofHaze || 0.3);
-    let lensMult = 1.0;
-    if (depthFactor > 0.8) {
-        lensMult = 1.0 - ((depthFactor - 0.8) / 0.2) * (dofLensFade || 0.5);
-    }
-    
-    const alpha = (opacity / 255.0) * (0.5 + depthFactor * 0.5) * hazeMult * lensMult;
-    const finalAlpha = Math.max(0.0, Math.min(1.0, alpha * (1.0 + (glowStrength || 0.5) * depthFactor)));
-    if (finalAlpha <= 0.005) return;
-
-    if (img && img.complete && img.naturalWidth > 0) {
-        ctx.globalAlpha = finalAlpha;
-        const dSize = sizeWithDepth * 2;
-        ctx.drawImage(img, x - sizeWithDepth, y - sizeWithDepth, dSize, dSize);
-    } else {
-        const dSize = sizeWithDepth * 2;
-        const grad = ctx.createRadialGradient(x, y, 0, x, y, dSize);
-        grad.addColorStop(0, `rgba(255, 255, 255, ${finalAlpha})`);
-        grad.addColorStop(0.35, `rgba(255, 255, 255, ${finalAlpha * 0.65})`);
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(x, y, dSize, 0, Math.PI * 2);
-        ctx.fill();
     }
 }
 
