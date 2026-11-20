@@ -49,6 +49,25 @@
                     <button class="tab-btn" data-tab="tab-sparkles">✨ Błyski</button>
                 </div>
 
+                <!-- Zapisywanie i wczytywanie ustawień z dysku (JSON) -->
+                <div class="card card-settings-storage" style="margin-bottom: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.12); padding: 10px 12px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="font-size: 0.82rem; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px;">
+                            💾 Ustawienia (Plik JSON)
+                        </span>
+                        <span style="font-size: 0.72rem; color: var(--color-primary); font-weight: 500;">Dysk PC</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button type="button" id="btn-save-settings-disk" class="btn btn-secondary" style="padding: 7px 6px; font-size: 0.78rem; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 4px;" title="Pobierz aktualne ustawienia śnieżynek, błysków i rozmieszczonych punktów do pliku JSON na dysk">
+                            <span>💾</span> Zapisz plik
+                        </button>
+                        <button type="button" id="btn-load-settings-disk" class="btn btn-secondary" style="padding: 7px 6px; font-size: 0.78rem; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 4px;" title="Wczytaj wcześniej zapisany plik JSON z ustawieniami z dysku">
+                            <span>📂</span> Wczytaj plik
+                        </button>
+                    </div>
+                    <input type="file" id="settings-file-input" accept=".json,application/json" style="display: none;">
+                </div>
+
                 <div class="tab-content active" id="tab-files">
                     <div class="card">
                         <h3>Pliki źródłowe</h3>
@@ -312,6 +331,7 @@
                         <div class="action-buttons" style="margin-top: 15px;">
                             <button id="btn-generate-snow" class="btn btn-secondary w-full btn-generate-snow">❄️ Generuj tylko Śnieg</button>
                             <button id="btn-generate-both-snow" class="btn btn-primary btn-glow w-full btn-generate-both" style="margin-top: 8px;">🚀 Generuj Śnieg i Błyski</button>
+                            <button type="button" id="btn-save-snow-disk" class="btn btn-secondary w-full" style="margin-top: 8px; font-size: 0.8rem;" title="Pobierz plik JSON z ustawieniami śniegu na dysk">💾 Pobierz tylko ustawienia śniegu (JSON)</button>
                         </div>
                     </div>
                 </div>
@@ -549,6 +569,7 @@
                         <div class="action-buttons" style="margin-top: 15px;">
                             <button id="btn-generate-sparkles" class="btn btn-secondary w-full btn-generate-sparkles">✨ Generuj tylko Błyski</button>
                             <button id="btn-generate-both-sparkles" class="btn btn-primary btn-glow w-full btn-generate-both" style="margin-top: 8px;">🚀 Generuj Śnieg i Błyski</button>
+                            <button type="button" id="btn-save-sparkles-disk" class="btn btn-secondary w-full" style="margin-top: 8px; font-size: 0.8rem;" title="Pobierz plik JSON z ustawieniami błysków i punktami na dysk">💾 Pobierz tylko ustawienia błysków (JSON)</button>
                         </div>
                     </div>
 
@@ -738,236 +759,142 @@
             </section>
         </main>
 
-        <!-- PODSTRONA: ZŁĄCZ WIDEO / ZDJĘCIA W JEDNO MP4 -->
+        <!-- PODSTRONA: PROSTE ŁĄCZENIE ZDJĘĆ I WIDEO W JEDNO MP4 -->
         <section id="video-joiner-view" class="video-joiner-page" style="display: none;">
             <!-- Pasek górny podstrony -->
             <header class="joiner-header">
                 <div class="joiner-header-left">
-                    <button id="btn-joiner-back" class="btn btn-secondary" style="display: flex; align-items: center; gap: 8px; font-weight: 600;">
-                        <span>⬅️</span> Wróć do edytora efektów
+                    <button id="btn-joiner-back" class="btn btn-secondary btn-back-friendly">
+                        <span class="icon">⬅️</span> Wróć do generatora
                     </button>
                     <div class="joiner-title-area">
-                        <h2>🎬 Złącz Wideo & Zdjęcia w jedno MP4</h2>
-                        <p>Łącz dowolne grafiki 2D, zdjęcia i klipy wideo w jeden płynny plik MP4</p>
+                        <h2>🎬 Złącz Zdjęcia i Wideo w jedno MP4</h2>
+                        <p>Wgraj pliki, ułóż kolejność strzałkami ◀ ▶ lub przeciąganiem i pobierz gotowy film</p>
                     </div>
                 </div>
                 <div class="joiner-header-right">
                     <div class="joiner-stats-pills">
-                        <span class="badge badge-info" id="joiner-total-time-badge">⏱️ Czas: 0.0s</span>
-                        <span class="badge badge-secondary" id="joiner-clips-count-badge">🎞️ Klipy: 0</span>
+                        <span class="badge badge-info" id="joiner-total-time-badge">⏱️ Łączny czas: 0.0s</span>
+                        <span class="badge badge-secondary" id="joiner-clips-count-badge">🎞️ Pliki: 0</span>
                     </div>
-                    <button id="btn-joiner-export-top" class="btn btn-primary btn-glow" style="display: flex; align-items: center; gap: 6px; font-weight: 600;">
-                        <span>🚀</span> Eksportuj do MP4
+                    <button id="btn-joiner-export-top" class="btn btn-primary btn-glow btn-export-friendly">
+                        <span>🚀</span> Złącz i pobierz MP4
                     </button>
                 </div>
             </header>
 
-            <!-- Główny układ podstrony -->
-            <div class="joiner-layout">
-                <!-- Panel Lewy: Upload, Numerowana Lista Plików, Ustawienia Eksportu -->
-                <aside class="joiner-sidebar">
-                    <!-- 1. Wgrywanie plików -->
-                    <div class="card joiner-card">
-                        <div class="card-header">
-                            <h3>📤 1. Wgraj pliki</h3>
-                        </div>
-                        <div class="joiner-upload-zone" id="joiner-dropzone">
-                            <input type="file" id="joiner-file-input" multiple accept="image/*,video/*,.jpg,.jpeg,.png,.webp,.gif,.svg,.mp4,.webm,.mov,.avi" style="display: none;">
-                            <span class="upload-icon" style="font-size: 2rem;">📁</span>
-                            <p style="font-weight: 600; margin: 4px 0;">Przeciągnij i upuść pliki tutaj</p>
-                            <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-bottom: 8px;">Zdjęcia, grafiki 2D, wideo</p>
-                            <button type="button" id="btn-browse-joiner-files" class="btn btn-secondary btn-sm">
-                                📂 Wybierz pliki z dysku
-                            </button>
-                        </div>
+            <!-- Główny kontener prostego łączenia -->
+            <div class="friendly-joiner-content">
+                <!-- Pasek ustawień: Rozdzielczość, Dopasowanie, FPS -->
+                <div class="card joiner-settings-strip">
+                    <div class="setting-item">
+                        <label for="joiner-export-resolution">📐 Rozdzielczość filmu:</label>
+                        <select id="joiner-export-resolution" class="input-select">
+                            <option value="original" id="joiner-opt-original">Oryginalna (największy plik): Brak plików</option>
+                            <option value="fhd" selected>Full HD (1920 × 1080) - 16:9</option>
+                            <option value="4k">4K UHD (3840 × 2160) - 16:9</option>
+                            <option value="hd">HD (1280 × 720) - 16:9</option>
+                            <option value="a4-v">A4 pion (210×297mm - 2480×3508 px)</option>
+                            <option value="a4-h">A4 poziom (297×210mm - 3508×2480 px)</option>
+                            <option value="custom">Niestandardowa (wpisz wymiary)</option>
+                        </select>
                     </div>
 
-                    <!-- 2. Numerowana Lista Wgranych Plików -->
-                    <div class="card joiner-card joiner-files-box">
-                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3>📂 2. Lista wgranych plików (<span id="joiner-files-count">0</span>)</h3>
-                            <button id="btn-clear-joiner-files" class="btn btn-secondary btn-xs" title="Wyczyść całą listę wgranych plików">Wyczyść</button>
-                        </div>
-                        <p class="joiner-tip-text">
-                            💡 <em>Podwójne kliknięcie w plik lub kliknięcie w „+ Dodaj” dodaje go na oś czasu (timeline).</em>
-                        </p>
-                        <div class="joiner-files-list-container" id="joiner-files-list">
-                            <div class="joiner-empty-hint">Brak wgranych plików. Dodaj zdjęcia lub wideo powyżej.</div>
-                        </div>
+                    <div id="joiner-custom-res-row" class="setting-item" style="display: none;">
+                        <input type="number" id="joiner-custom-width" class="input-number" style="width: 85px;" value="1920" placeholder="Szer.">
+                        <span>×</span>
+                        <input type="number" id="joiner-custom-height" class="input-number" style="width: 85px;" value="1080" placeholder="Wys.">
+                        <span>px</span>
                     </div>
 
-                    <!-- 3. Ustawienia Eksportu -->
-                    <div class="card joiner-card">
-                        <div class="card-header">
-                            <h3>⚙️ 3. Ustawienia eksportu MP4</h3>
-                        </div>
-                        
-                        <div class="form-group" style="margin-bottom: 10px;">
-                            <label for="joiner-export-resolution">Rozdzielczość filmu:</label>
-                            <select id="joiner-export-resolution" class="input-select w-full">
-                                <option value="original" id="joiner-opt-original">Oryginalna (największy plik): Brak plików</option>
-                                <option value="4k">4K UHD (3840 x 2160)</option>
-                                <option value="fhd" selected>Full HD (1920 x 1080)</option>
-                                <option value="hd">HD (1280 x 720)</option>
-                                <option value="a4-v">210x297mm (A4 pion: 2480 x 3508 px @ 300 DPI)</option>
-                                <option value="a4-h">297x210mm (A4 poziom: 3508 x 2480 px @ 300 DPI)</option>
-                                <option value="a4-v-screen">210x297mm (A4 pion: 1240 x 1754 px @ 150 DPI)</option>
-                                <option value="a4-h-screen">297x210mm (A4 poziom: 1754 x 1240 px @ 150 DPI)</option>
-                                <option value="custom">Niestandardowa (wpisz ręcznie W x H)</option>
-                            </select>
-                        </div>
+                    <div class="setting-item">
+                        <label for="joiner-fit-mode">🖼️ Dopasowanie kadrów:</label>
+                        <select id="joiner-fit-mode" class="input-select">
+                            <option value="letterbox" selected>Dopasuj (czarne pasy / 100% kadru)</option>
+                            <option value="cover">Wypełnij kadr (przycięcie brzegów)</option>
+                            <option value="stretch">Rozciągnij</option>
+                        </select>
+                    </div>
 
-                        <!-- Wymiary niestandardowe -->
-                        <div id="joiner-custom-res-row" class="form-row" style="display: none; margin-bottom: 10px; gap: 8px;">
-                            <div class="form-group" style="flex: 1;">
-                                <label style="font-size: 0.75rem;">Szerokość (px):</label>
-                                <input type="number" id="joiner-custom-width" class="input-number w-full" value="1920" min="100" max="7680">
-                            </div>
-                            <div class="form-group" style="flex: 1;">
-                                <label style="font-size: 0.75rem;">Wysokość (px):</label>
-                                <input type="number" id="joiner-custom-height" class="input-number w-full" value="1080" min="100" max="7680">
-                            </div>
-                        </div>
+                    <div class="setting-item">
+                        <label for="joiner-fps-select">🎞️ Płynność (FPS):</label>
+                        <select id="joiner-fps-select" class="input-select" style="width: 90px;">
+                            <option value="30" selected>30 FPS</option>
+                            <option value="60">60 FPS</option>
+                            <option value="25">25 FPS</option>
+                        </select>
+                    </div>
 
-                        <div class="form-group" style="margin-bottom: 10px;">
-                            <label for="joiner-fit-mode">Dopasowanie kadrów o różnych proporcjach:</label>
-                            <select id="joiner-fit-mode" class="input-select w-full">
-                                <option value="letterbox" selected>Dopasuj proporcje (Letterbox - czarne pasy)</option>
-                                <option value="cover">Wypełnij kadr (Cover - przycięcie krawędzi)</option>
-                                <option value="stretch">Rozciągnij (Stretch)</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group" style="margin-bottom: 10px;">
-                            <label>Długość filmu (czas trwania):</label>
-                            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem; margin-top: 4px;">
-                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                                    <input type="radio" name="joiner-duration-mode" value="auto" checked id="joiner-dur-auto">
-                                    <span>Oryginalna długość tylu dodanych klipów (<strong id="joiner-auto-duration-label">0.0 s</strong>)</span>
-                                </label>
-                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-                                    <input type="radio" name="joiner-duration-mode" value="custom" id="joiner-dur-custom">
-                                    <span>Własna długość:</span>
-                                    <input type="number" id="joiner-custom-duration-input" class="input-number" style="width: 75px; padding: 2px 6px;" min="0.5" step="0.5" value="10.0" disabled>
-                                    <span>sekund</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="form-row" style="margin-bottom: 12px; gap: 8px;">
-                            <div class="form-group" style="flex: 1;">
-                                <label for="joiner-fps-select">FPS:</label>
-                                <select id="joiner-fps-select" class="input-select w-full">
-                                    <option value="30" selected>30 FPS</option>
-                                    <option value="60">60 FPS</option>
-                                    <option value="25">25 FPS</option>
-                                    <option value="24">24 FPS</option>
-                                </select>
-                            </div>
-                            <div class="form-group" style="flex: 1.5;">
-                                <label for="joiner-output-name">Nazwa pliku:</label>
-                                <input type="text" id="joiner-output-name" class="input-text w-full" value="zlaczony_film.mp4">
-                            </div>
-                        </div>
-
-                        <button id="btn-joiner-export-sidebar" class="btn btn-primary btn-glow w-full" style="padding: 10px; font-weight: 700; font-size: 0.95rem;">
-                            🚀 Generuj i pobierz MP4
+                    <div class="setting-item" style="margin-left: auto; gap: 8px;">
+                        <button id="btn-joiner-clear-all" class="btn btn-secondary btn-sm" title="Usuń wszystkie pliki">
+                            🗑️ Wyczyść listę
                         </button>
                     </div>
-                </aside>
+                </div>
 
-                <!-- Panel Prawy: Podgląd Odtwarzacza & Oś Czasu (Timeline) -->
-                <main class="joiner-main-panel">
-                    <!-- Odtwarzacz Podglądu -->
-                    <div class="card joiner-player-card">
-                        <div class="joiner-canvas-container" id="joiner-viewport">
-                            <canvas id="joiner-preview-canvas" width="1280" height="720"></canvas>
-                            <div id="joiner-preview-placeholder" class="joiner-player-placeholder">
-                                <span style="font-size: 2.8rem;">🎬</span>
-                                <p style="font-weight: 600; margin-top: 8px;">Brak klipów na osi czasu</p>
-                                <p style="font-size: 0.8rem; color: var(--color-text-muted);">Kliknij dwukrotnie plik z listy po lewej stronie, aby dodać go do filmu.</p>
-                            </div>
+                <!-- Karty Sekwencji (Pliki w filmie) -->
+                <div class="card joiner-sequence-board">
+                    <div class="sequence-board-header">
+                        <div class="board-title-group">
+                            <h3>🎞️ Pliki w filmie (Kolejność odtwarzania)</h3>
+                            <p class="board-instruction">
+                                Przeciągaj kafelki lub klikaj strzałki <strong>◀ W lewo</strong> / <strong>W prawo ▶</strong>, aby zmienić kolejność.
+                                Wpisz czas trwania dla zdjęć w sekundach.
+                            </p>
                         </div>
+                        <button type="button" id="btn-add-more-files" class="btn btn-secondary btn-glow" style="display: flex; align-items: center; gap: 6px;">
+                            <span>➕</span> Dodaj kolejne zdjęcia / filmy
+                        </button>
+                    </div>
 
-                        <!-- Kontrolki Odtwarzacza -->
-                        <div class="joiner-playback-bar">
-                            <div class="playback-btn-group">
-                                <button id="btn-joiner-rewind" class="btn btn-secondary btn-icon" title="Przejdź na początek (0s)">⏮️</button>
-                                <button id="btn-joiner-play" class="btn btn-primary btn-icon" title="Odtwórz / Pauza (Spacja)">▶️</button>
-                                <button id="btn-joiner-stop" class="btn btn-secondary btn-icon" title="Zatrzymaj">⏹️</button>
-                            </div>
-                            <div class="playback-time-badge">
-                                <span id="joiner-time-current" style="font-family: var(--font-mono); font-weight: 600;">00:00.0</span> / 
-                                <span id="joiner-time-total" style="font-family: var(--font-mono); color: var(--color-text-muted);">00:00.0</span>
-                                <span id="joiner-active-clip-label" class="badge badge-clip-info">Brak aktywnego klipu</span>
-                            </div>
-                            <div class="playback-scale-group">
-                                <span style="font-size: 0.78rem; color: var(--color-text-muted);">Skala osi:</span>
-                                <button id="btn-joiner-zoom-out" class="btn btn-secondary btn-xs" title="Oddal oś czasu">−</button>
-                                <button id="btn-joiner-zoom-reset" class="btn btn-secondary btn-xs" title="Domyślna skala">100%</button>
-                                <button id="btn-joiner-zoom-in" class="btn btn-secondary btn-xs" title="Przybliż oś czasu">+</button>
-                            </div>
+                    <!-- Siatka kafelków plików -->
+                    <div class="joiner-cards-flex" id="joiner-cards-container">
+                        <!-- Wyświetlane dynamicznie lub strefa dropzone gdy puste -->
+                    </div>
+
+                    <!-- Ukryty input plików -->
+                    <input type="file" id="joiner-file-input" multiple accept="image/*,video/*,.jpg,.jpeg,.png,.webp,.gif,.svg,.mp4,.webm,.mov,.avi" style="display: none;">
+                </div>
+
+                <!-- Dolny Podgląd Odtwarzacza & Pasek Eksportu -->
+                <div class="card joiner-bottom-player-card">
+                    <div class="bottom-player-header">
+                        <h4>📺 Podgląd zmontowanej sekwencji:</h4>
+                        <div class="bottom-player-timer">
+                            <span id="joiner-time-current">00:00.0</span> / <span id="joiner-time-total">00:00.0</span>
+                            <span id="joiner-active-clip-label" class="badge badge-clip-info">Brak plików</span>
                         </div>
                     </div>
 
-                    <!-- Okienko Szczegółów Wybranego Klipu (Inspector) -->
-                    <div class="card joiner-clip-inspector" id="joiner-clip-inspector" style="display: none;">
-                        <div class="inspector-content">
-                            <div class="inspector-item-info">
-                                <span id="inspector-clip-badge" class="badge badge-primary">#1</span>
-                                <strong id="inspector-clip-name">nazwa_pliku.jpg</strong>
-                                <span id="inspector-clip-type-dims" class="badge badge-secondary">1920x1080</span>
+                    <div class="bottom-player-grid">
+                        <div class="bottom-canvas-wrapper">
+                            <canvas id="joiner-preview-canvas" width="960" height="540"></canvas>
+                        </div>
+
+                        <div class="bottom-player-sidebar">
+                            <div class="bottom-player-btns">
+                                <button id="btn-joiner-rewind" class="btn btn-secondary btn-sm" title="Cofnij na początek">⏮️ Początek</button>
+                                <button id="btn-joiner-play" class="btn btn-primary btn-glow" style="flex: 1; font-weight: 700;" title="Odtwórz / Pauza (Spacja)">▶️ Odtwórz</button>
+                                <button id="btn-joiner-stop" class="btn btn-secondary btn-sm" title="Zatrzymaj">⏹️ Stop</button>
                             </div>
-                            <div class="inspector-duration-group">
-                                <label for="inspector-clip-duration">⏱️ Czas trwania klipu:</label>
-                                <input type="number" id="inspector-clip-duration" class="input-number" min="0.1" max="3600" step="0.1" value="3.0">
-                                <span>sekund</span>
-                                <button id="btn-inspector-apply" class="btn btn-secondary btn-sm">Zastosuj</button>
-                                <div class="inspector-actions">
-                                    <button id="btn-inspector-move-prev" class="btn btn-secondary btn-xs" title="Przesuń klip wcześniej w sekwencji">◀ W lewo</button>
-                                    <button id="btn-inspector-move-next" class="btn btn-secondary btn-xs" title="Przesuń klip później w sekwencji">W prawo ▶</button>
-                                    <button id="btn-inspector-remove" class="btn btn-danger btn-xs" title="Usuń ten klip z osi">🗑️ Usuń z osi</button>
+
+                            <div class="bottom-scrubber-box">
+                                <label for="joiner-player-scrubber" style="font-size: 0.78rem; color: var(--color-text-muted);">Przewijanie filmu:</label>
+                                <input type="range" id="joiner-player-scrubber" min="0" max="100" value="0" step="0.1" class="w-full">
+                            </div>
+
+                            <div class="bottom-export-action-box">
+                                <div class="action-summary-row">
+                                    <span>Łączny czas filmu:</span>
+                                    <strong id="joiner-export-summary-time" style="color: var(--color-primary); font-size: 1.15rem;">0.0 s</strong>
                                 </div>
+                                <button id="btn-joiner-export-main" class="btn btn-primary btn-glow w-full btn-large-export">
+                                    🚀 Złącz i pobierz MP4
+                                </button>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Sekcja Osi Czasu (Timeline) -->
-                    <div class="card joiner-timeline-panel">
-                        <div class="timeline-header-row">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <h3>⏱️ Oś czasu sekwencji (Timeline)</h3>
-                                <span class="badge" id="joiner-timeline-counter">0 klipów</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span class="timeline-hint">
-                                    💡 <em>Kliknij i przeciągnij prawą krawędź klipu, aby rozciągnąć czas trwania. Kliknij klip, aby wpisać dokładną długość.</em>
-                                </span>
-                                <button id="btn-joiner-clear-timeline" class="btn btn-secondary btn-xs">Wyczyść oś</button>
-                            </div>
-                        </div>
-
-                        <!-- Scrollowalny kontener poziomy osi czasu -->
-                        <div class="joiner-timeline-scroller" id="joiner-timeline-scroller">
-                            <div class="joiner-timeline-canvas-area" id="joiner-timeline-canvas-area">
-                                <!-- Linijka czasu z podziałką sekundową -->
-                                <div class="joiner-ruler-bar">
-                                    <canvas id="joiner-ruler-canvas" height="26"></canvas>
-                                </div>
-
-                                <!-- Wskaźnik czasu (Playhead) -->
-                                <div id="joiner-playhead" class="joiner-playhead-indicator" style="left: 0px;">
-                                    <div class="joiner-playhead-pointer"></div>
-                                </div>
-
-                                <!-- Ścieżka klipów sekwencyjnych -->
-                                <div class="joiner-clips-track" id="joiner-clips-track">
-                                    <!-- Dynamicznie wstawiane klipy -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </main>
+                </div>
             </div>
         </section>
     </div>

@@ -412,6 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSliders();
     setupFilePicker();
     setupPresetControls();
+    setupSettingsDiskStorage();
     setupUpload();
     setupCanvasInteractions();
     setupSizeSelector();
@@ -808,14 +809,22 @@ function resizeOverlay(mediaElement) {
     dispW = Math.round(dispW);
     dispH = Math.round(dispH);
 
+    state.baseDispW = dispW;
+    state.baseDispH = dispH;
+
+    const currentZoom = state.zoomLevel || 1.0;
+    const finalW = Math.round(dispW * currentZoom);
+    const finalH = Math.round(dispH * currentZoom);
+
     if (mediaViewport) {
-        mediaViewport.style.width = `${dispW}px`;
-        mediaViewport.style.height = `${dispH}px`;
+        mediaViewport.style.width = `${finalW}px`;
+        mediaViewport.style.height = `${finalH}px`;
         mediaViewport.style.aspectRatio = `${state.sourceWidth} / ${state.sourceHeight}`;
+        mediaViewport.style.transform = 'none';
     }
     
-    state.renderedWidth = dispW;
-    state.renderedHeight = dispH;
+    state.renderedWidth = finalW;
+    state.renderedHeight = finalH;
     
     // ViewBox SVG ustawiony dokładnie na wymiary źródłowe
     canvasOverlay.setAttribute('viewBox', `0 0 ${state.sourceWidth} ${state.sourceHeight}`);
@@ -1450,6 +1459,29 @@ class SnowParticle {
     }
 }
 
+// Sprzętowo akcelerowany, buforowany sprite śnieżynki - eliminuje alokację tysięcy obiektów CanvasGradient per klatka
+let cachedDefaultSnowflakeCanvas = null;
+function getDefaultSnowflakeCanvas() {
+    if (!cachedDefaultSnowflakeCanvas) {
+        const c = document.createElement('canvas');
+        const s = 128;
+        c.width = s;
+        c.height = s;
+        const sCtx = c.getContext('2d');
+        const half = s / 2;
+        const grad = sCtx.createRadialGradient(half, half, 0, half, half, half);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.65)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        sCtx.fillStyle = grad;
+        sCtx.beginPath();
+        sCtx.arc(half, half, half, 0, Math.PI * 2);
+        sCtx.fill();
+        cachedDefaultSnowflakeCanvas = c;
+    }
+    return cachedDefaultSnowflakeCanvas;
+}
+
 function drawSnowflake(ctx, x, y, radius, opacity, depthFactor, glowStrength, dofFocus = 0.5, dofBlurStrength = 1.0, dofHaze = 0.3, dofLensFade = 0.5, img = null) {
     const sizeWithDepth = radius * (0.3 + depthFactor * 0.7);
     if (sizeWithDepth <= 0) return;
@@ -1465,21 +1497,13 @@ function drawSnowflake(ctx, x, y, radius, opacity, depthFactor, glowStrength, do
     const finalAlpha = Math.max(0.0, Math.min(1.0, alpha * (1.0 + (glowStrength || 0.5) * depthFactor)));
     if (finalAlpha <= 0.005) return;
 
+    ctx.globalAlpha = finalAlpha;
+    const dSize = sizeWithDepth * 2;
     if (img && img.complete && img.naturalWidth > 0) {
-        ctx.globalAlpha = finalAlpha;
-        const dSize = sizeWithDepth * 2;
         ctx.drawImage(img, x - sizeWithDepth, y - sizeWithDepth, dSize, dSize);
     } else {
-        const dSize = sizeWithDepth * 2;
-        const grad = ctx.createRadialGradient(x, y, 0, x, y, dSize);
-        grad.addColorStop(0, `rgba(255, 255, 255, ${finalAlpha})`);
-        grad.addColorStop(0.35, `rgba(255, 255, 255, ${finalAlpha * 0.65})`);
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(x, y, dSize, 0, Math.PI * 2);
-        ctx.fill();
+        const sprite = getDefaultSnowflakeCanvas();
+        ctx.drawImage(sprite, x - dSize, y - dSize, dSize * 2, dSize * 2);
     }
 }
 
@@ -2661,11 +2685,16 @@ function setupSizeSelector() {
 
 function setupZoom() {
     const applyZoom = (newZoom) => {
-        state.zoomLevel = Math.max(0.25, Math.min(4.0, Math.round(newZoom * 100) / 100));
+        state.zoomLevel = Math.max(0.25, Math.min(5.0, Math.round(newZoom * 100) / 100));
         if (zoomLevelVal) zoomLevelVal.textContent = `${Math.round(state.zoomLevel * 100)}%`;
-        if (mediaViewport) {
-            mediaViewport.style.transform = `scale(${state.zoomLevel})`;
-            mediaViewport.style.transformOrigin = 'center center';
+        if (mediaViewport && state.baseDispW && state.baseDispH) {
+            const targetW = Math.round(state.baseDispW * state.zoomLevel);
+            const targetH = Math.round(state.baseDispH * state.zoomLevel);
+            mediaViewport.style.width = `${targetW}px`;
+            mediaViewport.style.height = `${targetH}px`;
+            mediaViewport.style.transform = 'none';
+            state.renderedWidth = targetW;
+            state.renderedHeight = targetH;
         }
     };
     
@@ -2677,10 +2706,44 @@ function setupZoom() {
         previewAreaContainer.addEventListener('wheel', (e) => {
             if (e.ctrlKey || e.metaKey) {
                 e.preventDefault();
-                const delta = e.deltaY < 0 ? 0.15 : -0.15;
+                const delta = e.deltaY < 0 ? 0.2 : -0.2;
                 applyZoom(state.zoomLevel + delta);
             }
+            // Gdy Ctrl nie jest wciśnięty, kontener previewAreaContainer przewija się płynnie w pionie (góra / dół)
         }, { passive: false });
+
+        // Obsługa płynnego przesuwania powiększonego obrazu (Pan):
+        // Środkowy przycisk myszy lub Alt + Lewy przycisk myszy
+        let isPanning = false;
+        let startX = 0, startY = 0, scrollLeft = 0, scrollTop = 0;
+
+        previewAreaContainer.addEventListener('mousedown', (e) => {
+            if (e.button === 1 || (e.altKey && e.button === 0)) {
+                isPanning = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                scrollLeft = previewAreaContainer.scrollLeft;
+                scrollTop = previewAreaContainer.scrollTop;
+                previewAreaContainer.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isPanning) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                previewAreaContainer.scrollLeft = scrollLeft - dx;
+                previewAreaContainer.scrollTop = scrollTop - dy;
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (isPanning) {
+                isPanning = false;
+                previewAreaContainer.style.cursor = '';
+            }
+        });
     }
 }
 
@@ -3059,6 +3122,144 @@ function setupPresetControls() {
             logMessage(`Błąd zapisu: ${err.message}`, 'error');
         }
     });
+}
+
+// ==========================================
+// ZAPIS I ODCZYT USTAWIEŃ Z DYSKU (JSON)
+// ==========================================
+function setupSettingsDiskStorage() {
+    const btnSaveDisk = document.getElementById('btn-save-settings-disk');
+    const btnLoadDisk = document.getElementById('btn-load-settings-disk');
+    const fileInput = document.getElementById('settings-file-input');
+    const btnSaveSnowDisk = document.getElementById('btn-save-snow-disk');
+    const btnSaveSparklesDisk = document.getElementById('btn-save-sparkles-disk');
+
+    if (btnSaveDisk) {
+        btnSaveDisk.addEventListener('click', () => saveSettingsToDisk('all'));
+    }
+    if (btnSaveSnowDisk) {
+        btnSaveSnowDisk.addEventListener('click', () => saveSettingsToDisk('snow'));
+    }
+    if (btnSaveSparklesDisk) {
+        btnSaveSparklesDisk.addEventListener('click', () => saveSettingsToDisk('sparkles'));
+    }
+
+    if (btnLoadDisk && fileInput) {
+        btnLoadDisk.addEventListener('click', () => {
+            fileInput.value = '';
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                const file = e.target.files[0];
+                loadSettingsFromDisk(file);
+            }
+        });
+    }
+}
+
+function saveSettingsToDisk(category = 'all') {
+    const settings = getSettingsObject();
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    let filename = `ustawienia_snieg_i_blyski_${dateStr}.json`;
+
+    let data = {
+        app: "Generator Sniezynek i Blyskow",
+        version: "2.0",
+        exportedAt: now.toISOString(),
+        category: category,
+        settings: settings,
+        placed_sparkles: state.sparkles
+    };
+
+    if (category === 'snow') {
+        filename = `ustawienia_sniegu_${dateStr}.json`;
+    } else if (category === 'sparkles') {
+        filename = `ustawienia_blyskow_${dateStr}.json`;
+    }
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 500);
+
+    logMessage(`✓ Zapisano plik ustawień na dysk: ${filename}`, 'success');
+}
+
+function loadSettingsFromDisk(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const parsed = JSON.parse(e.target.result);
+            applySettingsFromDisk(parsed);
+            logMessage(`✓ Pomyślnie wczytano ustawienia z pliku: ${file.name}`, 'success');
+        } catch(err) {
+            console.error('Błąd odczytu pliku JSON:', err);
+            alert('Nie udało się wczytać pliku JSON: ' + err.message);
+            logMessage(`❌ Błąd odczytu pliku JSON: ${err.message}`, 'error');
+        }
+    };
+    reader.readAsText(file);
+}
+
+function applySettingsFromDisk(data) {
+    if (!data) return;
+
+    // Obsłuż format zagnieżdżony (data.settings) lub płaski (data)
+    const settings = data.settings || data.all || data;
+
+    // 1. Zastosuj wartości pól i suwaków
+    applySettingsObject(settings);
+
+    // 2. Jeśli plik zawiera tylko śnieg
+    if (data.snow) {
+        applySettingsObject(data.snow);
+    }
+
+    // 3. Jeśli plik zawiera tylko błyski
+    if (data.sparkles && !Array.isArray(data.sparkles)) {
+        applySettingsObject(data.sparkles);
+    }
+
+    // 4. Przywróć rozmieszczone punkty błysków na osi czasu
+    const sparklesArr = Array.isArray(data.placed_sparkles)
+        ? data.placed_sparkles
+        : (Array.isArray(settings.sparkles) ? settings.sparkles : (Array.isArray(data.sparkles) ? data.sparkles : null));
+
+    if (sparklesArr) {
+        state.sparkles = sparklesArr.map((s, idx) => {
+            ensureSparkleProperties(s, idx);
+            return {
+                ...s,
+                sparkle_type: s.sparkle_type || state.selectedSparkleType || '1',
+                size_multiplier: s.size_multiplier !== undefined ? s.size_multiplier : 1.0,
+                layer: s.layer || 'sparkles',
+                timing_mode: s.timing_mode || 'manual',
+                start_frame: s.start_frame !== undefined ? s.start_frame : 0,
+                end_frame: s.end_frame !== undefined ? s.end_frame : (state.totalFrames || 60),
+                clip_id: s.clip_id || `clip_${Date.now()}_${idx}`
+            };
+        });
+        cleanupEmptyClips();
+        updateSparklesDisplay();
+        drawSparkles();
+        renderTimelineTracks();
+    }
+
+    // 5. Odśwież cząsteczki śniegu na podglądzie
+    if (typeof initPreviewSnowParticles === 'function') {
+        initPreviewSnowParticles();
+    }
 }
 
 // GENERATION DRIVERS AND SSE LOGGER
@@ -3452,6 +3653,8 @@ async function generateClientSide(type) {
         for (let i = 0; i < density; i++) {
             snowParticles.push(new SnowParticle(drawParams.targetW, drawParams.targetH, minSize, maxSize, depthLayers, fallMode, fallSpeed, fallMin, fallMax));
         }
+        // Posortuj płatki raz przed rozpoczęciem renderowania - eliminuje kosztowne sortowanie per klatka
+        snowParticles.sort((a, b) => a.depth - b.depth);
     }
     
     // Inicjalizacja błysków
@@ -3573,8 +3776,6 @@ async function generateClientSide(type) {
             };
             bCtx.globalCompositeOperation = blendModes[snowBlendModeSelect ? snowBlendModeSelect.value : 'normal'] || 'source-over';
             
-            snowParticles.sort((a, b) => a.depth - b.depth);
-            
             const dofFocus = parseFloat(snowDofFocusSlider.value);
             const dofBlur = parseFloat(snowDofBlurSlider.value);
             const dofHaze = parseFloat(snowDofHazeSlider.value);
@@ -3664,19 +3865,19 @@ async function generateClientSide(type) {
                     const spriteSource = frameCvs || cachedSpriteImages[spkType];
 
                     if (spriteSource) {
-                        const drawSingle = (targetCtx) => {
+                        const drawSingle = (targetCtx, customDx = dx, customDy = dy, customDw = dw, customDh = dh) => {
                             if (frameCvs) {
-                                targetCtx.drawImage(frameCvs, 0, 0, frameCvs.width, frameCvs.height, dx, dy, dw, dh);
+                                targetCtx.drawImage(frameCvs, 0, 0, frameCvs.width, frameCvs.height, customDx, customDy, customDw, customDh);
                             } else {
                                 const srcW = (spriteSource.naturalWidth || 2048) / cols;
                                 const srcH = (spriteSource.naturalHeight || 1536) / rows;
-                                targetCtx.drawImage(spriteSource, col * srcW, row * srcH, srcW, srcH, dx, dy, dw, dh);
+                                targetCtx.drawImage(spriteSource, col * srcW, row * srcH, srcW, srcH, customDx, customDy, customDw, customDh);
                             }
                         };
 
                         const animEffectiveAlpha = animInfo.opacity * opacityMax;
 
-                        // Bloom Layer
+                        // Bloom Layer (Zoptymalizowany, sprzetowy pas addytywnej poswiaty)
                         if (sparkleKeySettings.bloomEnabled && (sparkleKeySettings.bloomStrength || 0) > 0 && (sparkleKeySettings.bloomOpacity || 0) > 0) {
                             bCtx.save();
                             const bloomCanvasBlendModes = {
@@ -3695,15 +3896,16 @@ async function generateClientSide(type) {
 
                             const blurScale = drawParams.dstW / 1200;
                             const blurRadius = (sparkleKeySettings.bloomRadius || 15) * blurScale * (sparkleKeySettings.bloomStrength || 1.2);
-                            const bloomBlurPx = getSparkleBloomBlur() * blurScale;
-                            if (bloomBlurPx > 0 && typeof bCtx.filter !== 'undefined') {
-                                bCtx.filter = `blur(${Math.round(bloomBlurPx)}px)`;
-                            }
-                            bCtx.shadowColor = sparkleKeySettings.bloomColor || '#ffffff';
-                            bCtx.shadowBlur = blurRadius;
                             const bAlpha = (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * animEffectiveAlpha * Math.min(2.0, (sparkleKeySettings.bloomStrength || 1.2));
-                            bCtx.globalAlpha = Math.max(0.0, Math.min(1.0, bAlpha));
-                            drawSingle(bCtx);
+                            bCtx.globalAlpha = Math.max(0.0, Math.min(1.0, bAlpha * 0.75));
+
+                            const glowScale = 1.0 + Math.min(1.6, (blurRadius / Math.max(1, dw)) * 0.7);
+                            const glowW = dw * glowScale;
+                            const glowH = dh * glowScale;
+                            const glowX = renderSparkleX - glowW / 2;
+                            const glowY = renderSparkleY - glowH / 2;
+
+                            drawSingle(bCtx, glowX, glowY, glowW, glowH);
                             bCtx.restore();
                         }
 
@@ -3759,7 +3961,7 @@ async function generateClientSide(type) {
 
                         const effectiveAlpha = factor * opacityMax;
 
-                        // Bloom Layer
+                        // Bloom Layer (Zoptymalizowany, sprzetowy pas addytywnej poswiaty)
                         if (sparkleKeySettings.bloomEnabled && (sparkleKeySettings.bloomStrength || 0) > 0 && (sparkleKeySettings.bloomOpacity || 0) > 0) {
                             bCtx.save();
                             const bloomCanvasBlendModes = {
@@ -3778,15 +3980,16 @@ async function generateClientSide(type) {
 
                             const blurScale = drawParams.dstW / 1200;
                             const blurRadius = (sparkleKeySettings.bloomRadius || 15) * blurScale * (sparkleKeySettings.bloomStrength || 1.2);
-                            const bloomBlurPx = getSparkleBloomBlur() * blurScale;
-                            if (bloomBlurPx > 0 && typeof bCtx.filter !== 'undefined') {
-                                bCtx.filter = `blur(${Math.round(bloomBlurPx)}px)`;
-                            }
-                            bCtx.shadowColor = sparkleKeySettings.bloomColor || '#ffffff';
-                            bCtx.shadowBlur = blurRadius;
                             const bAlpha = (sparkleKeySettings.bloomOpacity !== undefined ? sparkleKeySettings.bloomOpacity : 1.0) * effectiveAlpha * Math.min(2.0, (sparkleKeySettings.bloomStrength || 1.2));
-                            bCtx.globalAlpha = Math.max(0.0, Math.min(1.0, bAlpha));
-                            bCtx.drawImage(sparkleImg, dx, dy, dw, dh);
+                            bCtx.globalAlpha = Math.max(0.0, Math.min(1.0, bAlpha * 0.75));
+
+                            const glowScale = 1.0 + Math.min(1.6, (blurRadius / Math.max(1, dw)) * 0.7);
+                            const glowW = dw * glowScale;
+                            const glowH = dh * glowScale;
+                            const glowX = renderSparkleX - glowW / 2;
+                            const glowY = renderSparkleY - glowH / 2;
+
+                            bCtx.drawImage(sparkleImg, glowX, glowY, glowW, glowH);
                             bCtx.restore();
                         }
 
